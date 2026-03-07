@@ -1,4 +1,4 @@
-/* main.js — Road Rescue global scripts */
+/* main.js — Smart Roadside Assistance global scripts */
 
 // Auto-dismiss alerts after 4s
 document.addEventListener('DOMContentLoaded', () => {

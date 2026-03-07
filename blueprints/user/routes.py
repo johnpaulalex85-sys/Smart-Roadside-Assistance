@@ -105,7 +105,7 @@ def request_service():
         
         user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
         if user and user.get("phone"):
-            send_sms_alert(user["phone"], f"Your Road Rescue request for {vehicle_company} {vehicle_model} has been submitted and is pending workshop acceptance.")
+            send_sms_alert(user["phone"], f"Your Smart Roadside Assistance request for {vehicle_company} {vehicle_model} has been submitted and is pending workshop acceptance.")
             
         flash("Service request submitted successfully!", "success")
         return redirect(url_for("user.dashboard"))

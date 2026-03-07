@@ -19,9 +19,9 @@ def login_required(f):
 
 def _seed_admin():
     """Insert a default admin if none exists."""
-    if not mongo.db.admins.find_one({"email": "admin@roadrescue.com"}):
+    if not mongo.db.admins.find_one({"email": "admin@smartroadsideassistance.com"}):
         mongo.db.admins.insert_one({
-            "email": "admin@roadrescue.com",
+            "email": "admin@smartroadsideassistance.com",
             "password": generate_password_hash("Admin@1234"),
             "name": "Super Admin",
             "role": "admin",

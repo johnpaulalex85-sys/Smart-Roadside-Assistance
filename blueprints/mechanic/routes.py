@@ -71,7 +71,7 @@ def update_status(request_id):
             user = mongo.db.users.find_one({"_id": req["user_id"]})
             if user and user.get("phone"):
                 from utils.notifications import send_sms_alert
-                send_sms_alert(user["phone"], "Your Road Rescue request has been marked as COMPLETED by the mechanic. Please proceed to payment.")
+                send_sms_alert(user["phone"], "Your Smart Roadside Assistance request has been marked as COMPLETED by the mechanic. Please proceed to payment.")
                 
     flash(f"Request marked as '{new_status}'.", "success")
     return redirect(url_for("mechanic.dashboard"))

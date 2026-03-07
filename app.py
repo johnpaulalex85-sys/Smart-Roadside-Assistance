@@ -22,9 +22,9 @@ def create_app():
             pass
 
         # Seed default admin account
-        if not mongo.db.admins.find_one({"email": "admin@roadrescue.com"}):
+        if not mongo.db.admins.find_one({"email": "admin@smartroadsideassistance.com"}):
             mongo.db.admins.insert_one({
-                "email": "admin@roadrescue.com",
+                "email": "admin@smartroadsideassistance.com",
                 "name": "Super Admin",
                 "password": generate_password_hash("Admin@1234"),
                 "role": "admin",

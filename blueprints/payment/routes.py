@@ -41,7 +41,7 @@ def checkout(request_id):
         
         user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
         if user and user.get("email"):
-            send_email_notification(user["email"], "Payment Receipt - Road Rescue", f"Your payment of ${req.get('estimated_cost', 0):.2f} was successful.")
+            send_email_notification(user["email"], "Payment Receipt - Smart Roadside Assistance", f"Your payment of ${req.get('estimated_cost', 0):.2f} was successful.")
             
         flash("Payment successful! Please rate the service.", "success")
         return redirect(url_for("payment.rate_service", request_id=request_id))

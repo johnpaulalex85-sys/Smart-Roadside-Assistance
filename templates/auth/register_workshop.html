@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Register Workshop — Road Rescue{% endblock %}
+{% block title %}Register Workshop — Smart Roadside Assistance{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -44,7 +44,7 @@
             <div class="text-center mb-4">
                 <i class="bi bi-building-fill rr-hero-icon text-success"></i>
                 <h2 class="fw-700 mt-2">Register Your Workshop</h2>
-                <p class="text-muted small">Get listed on Road Rescue</p>
+                <p class="text-muted small">Get listed on Smart Roadside Assistance</p>
             </div>
 
             <form method="POST" action="{{ url_for('auth.register_workshop') }}" id="workshopRegForm">
