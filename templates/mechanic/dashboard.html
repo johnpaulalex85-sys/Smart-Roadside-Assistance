@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Mechanic Dashboard — Road Rescue{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+    <div class="rr-avatar-lg"><i class="bi bi-person-badge-fill"></i></div>
+    <div>
+        <h2 class="fw-700 mb-0">{{ mechanic.name }}</h2>
+        <p class="text-muted mb-0">Mechanic Dashboard — <span class="badge bg-success">{{ mechanic.status|title
+                }}</span></p>
+    </div>
+</div>
+
+<!-- Assigned Requests -->
+<div class="rr-card p-0 mb-4">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-clipboard-fill text-primary"></i>
+        <h5 class="mb-0 fw-700">Assigned Requests</h5>
+        <span class="badge bg-primary ms-auto">{{ assigned_requests|length }}</span>
+    </div>
+    {% if assigned_requests %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Issue</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in assigned_requests %}
+                <tr>
+                    <td>
+                        <strong>{{ req.user.name if req.user else '—' }}</strong><br>
+                        <small class="text-muted">{{ req.user.phone if req.user else '' }}</small>
+                    </td>
+                    <td>
+                        <span class="fw-600">{{ req.vehicle_type }}</span><br>
+                        <small class="text-muted">{{ req.vehicle_company }} {{ req.vehicle_model }} ({{ req.vehicle_year
+                            }})</small>
+                    </td>
+                    <td class="small">{{ req.description[:80] }}{% if req.description|length > 80 %}…{% endif %}</td>
+                    <td>
+                        {% set sc = {'Assigned':'primary','In Process':'warning'} %}
+                        <span class="badge bg-{{ sc.get(req.status,'secondary') }} rr-badge">{{ req.status }}</span>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2 flex-wrap">
+                            {% if req.status == 'Assigned' %}
+                            <form method="POST" action="{{ url_for('mechanic.update_status', request_id=req._id) }}">
+                                <input type="hidden" name="status" value="In Process">
+                                <button class="btn btn-sm btn-warning fw-600">
+                                    <i class="bi bi-gear me-1"></i>In Process
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('mechanic.update_status', request_id=req._id) }}">
+                                <input type="hidden" name="status" value="Completed">
+                                <button class="btn btn-sm btn-success fw-600">
+                                    <i class="bi bi-check-circle me-1"></i>Completed
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-inbox display-4 d-block mb-2"></i>No active assignments right now.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Completed Requests -->
+<div class="rr-card p-0">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-check-circle-fill text-success"></i>
+        <h5 class="mb-0 fw-700">Completed Requests</h5>
+        <span class="badge bg-success ms-auto">{{ completed_requests|length }}</span>
+    </div>
+    {% if completed_requests %}
+    <div class="table-responsive">
+        <table class="table mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in completed_requests %}
+                <tr>
+                    <td>{{ req.user.name if req.user else '—' }}</td>
+                    <td>{{ req.vehicle_type }} — {{ req.vehicle_company }} {{ req.vehicle_model }}</td>
+                    <td class="small text-muted">{{ req.created_at.strftime('%d %b %Y') if req.created_at else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-3 text-muted small">No completed requests yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

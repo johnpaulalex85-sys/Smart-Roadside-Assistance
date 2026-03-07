@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}User Dashboard — Road Rescue{% endblock %}
+
+{% block head_extra %}
+<style>
+    body {
+        background: none !important;
+        color: #fff;
+    }
+
+    #dashboard-bg {
+        position: fixed;
+        inset: 0;
+        background: url("{{ url_for('static', filename='user_dashboard_bg.jpg') }}") center center / cover no-repeat;
+        z-index: -2;
+    }
+
+    #dashboard-bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        /* Dark overlay for readability */
+        z-index: -1;
+    }
+
+    /* Glassmorphism for dashboard cards */
+    .rr-card,
+    .rr-stat-card {
+        background: rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(14px) saturate(140%);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+        color: #fff;
+    }
+
+    h2,
+    h5,
+    .rr-stat-num,
+    .rr-stat-label,
+    .table th,
+    .table td {
+        color: #fff !important;
+    }
+
+    .text-muted {
+        color: rgba(255, 255, 255, 0.65) !important;
+    }
+
+    /* Glassmorphism table adjustments */
+    .table {
+        --bs-table-bg: transparent;
+        --bs-table-color: #fff;
+    }
+
+    .table td,
+    .table th {
+        background: transparent !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .table-hover tbody tr:hover td {
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+
+    .btn-outline-primary {
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+    }
+
+    .btn-outline-primary:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dashboard-bg"></div>
+
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-700 mb-0">👋 Hello, {{ user.name }}!</h2>
+        <p class="text-muted">Manage your roadside assistance requests</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('user.profile') }}" class="btn btn-outline-primary fw-700">
+            <i class="bi bi-person me-2"></i>My Profile
+        </a>
+        <a href="{{ url_for('user.request_service') }}" class="btn btn-warning fw-700 rr-btn-main">
+            <i class="bi bi-plus-circle me-2"></i>New Request
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    {% set total = requests|length %}
+    {% set pending = requests|selectattr('status','equalto','Pending')|list|length %}
+    {% set active = requests|rejectattr('status','in',['Pending','Completed'])|list|length %}
+    {% set done = requests|selectattr('status','equalto','Completed')|list|length %}
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-primary">
+            <div class="rr-stat-icon text-primary"><i class="bi bi-list-check"></i></div>
+            <div class="rr-stat-num">{{ total }}</div>
+            <div class="rr-stat-label">Total Requests</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-warning">
+            <div class="rr-stat-icon text-warning"><i class="bi bi-hourglass-split"></i></div>
+            <div class="rr-stat-num">{{ pending }}</div>
+            <div class="rr-stat-label">Pending</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-info">
+            <div class="rr-stat-icon text-info"><i class="bi bi-gear"></i></div>
+            <div class="rr-stat-num">{{ active }}</div>
+            <div class="rr-stat-label">In Progress</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-success">
+            <div class="rr-stat-icon text-success"><i class="bi bi-check-circle"></i></div>
+            <div class="rr-stat-num">{{ done }}</div>
+            <div class="rr-stat-label">Completed</div>
+        </div>
+    </div>
+</div>
+
+<!-- Nearby Workshops Button -->
+<div class="mb-4">
+    <button class="btn btn-outline-primary" id="findNearbyBtn" onclick="findNearbyWorkshops()">
+        <i class="bi bi-geo-alt-fill me-2"></i>Find Nearby Workshops
+    </button>
+    <div id="nearbyResults" class="mt-3"></div>
+</div>
+
+<!-- Requests Table -->
+<div class="rr-card p-0">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-clock-history text-primary"></i>
+        <h5 class="mb-0 fw-700">My Requests</h5>
+    </div>
+    {% if requests %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Vehicle</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Workshop</th>
+                    <th>Mechanic</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requests %}
+                <tr>
+                    <td class="text-muted small">{{ loop.index }}</td>
+                    <td>
+                        <span class="fw-600">{{ req.vehicle_type }}</span><br>
+                        <small class="text-muted">{{ req.vehicle_company }} {{ req.vehicle_model }} ({{ req.vehicle_year
+                            }})</small>
+                    </td>
+                    <td class="small">{{ req.description[:60] }}{% if req.description|length > 60 %}…{% endif %}</td>
+                    <td>
+                        {% set sc = {'Pending':'warning','Accepted':'info','Assigned':'primary','In
+                        Process':'secondary','Completed':'success'} %}
+                        <span class="badge bg-{{ sc.get(req.status, 'secondary') }} rr-badge">{{ req.status }}</span>
+                    </td>
+                    <td class="small">{{ req.workshop.name if req.workshop else '—' }}</td>
+                    <td class="small">{{ req.mechanic.name if req.mechanic else '—' }}</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('user.track_request', request_id=req._id) }}"
+                                class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if req.status == 'Pending' %}
+                            <form method="POST" action="{{ url_for('user.cancel_request', request_id=req._id) }}"
+                                class="d-inline" onsubmit="return confirm('Cancel this request?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel Request">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-inbox display-4 d-block mb-2"></i>
+        No requests yet. <a href="{{ url_for('user.request_service') }}">Create one now!</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
+<script>
+    function findNearbyWorkshops() {
+        const btn = document.getElementById('findNearbyBtn');
+        const res = document.getElementById('nearbyResults');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Locating...';
+        if (!navigator.geolocation) {
+            res.innerHTML = '<div class="alert alert-danger">Geolocation not supported.</div>';
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(pos => {
+            fetch(`/user/nearby_workshops?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
+                .then(r => r.json()).then(data => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-geo-alt-fill me-2"></i>Find Nearby Workshops';
+
+                    if (data.error) { res.innerHTML = `<div class="alert alert-warning">${data.error}</div>`; return; }
+                    if (data.length === 0) { res.innerHTML = '<div class="alert alert-info">No workshops found within 30 km.</div>'; return; }
+
+                    let html = '<div class="row g-2">';
+                    data.forEach(w => {
+                        html += `<div class="col-md-4"><div class="rr-card p-3">
+            <h6 class="fw-700 mb-1"><i class="bi bi-tools me-1 text-warning"></i>${w.name}</h6>
+            <p class="small text-muted mb-1"><i class="bi bi-geo-alt me-1"></i>${w.location_name}</p>
+            <p class="small mb-3"><i class="bi bi-envelope me-1"></i>${w.email}</p>
+            <a href="/user/request?workshop_id=${w.id}" class="btn btn-sm btn-outline-warning w-100">Request Here</a>
+          </div></div>`;
+                    });
+                    html += '</div>';
+                    res.innerHTML = html;
+                }).catch(() => {
+                    res.innerHTML = '<div class="alert alert-danger">Server error.</div>';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-geo-alt-fill me-2"></i>Find Nearby Workshops';
+                });
+        }, (err) => {
+            res.innerHTML = `<div class="alert alert-warning">Location access denied: ${err.message}</div>`;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-geo-alt-fill me-2"></i>Find Nearby Workshops';
+        }, { timeout: 10000, maximumAge: 0 });
+    }
+</script>
+{% endblock %}

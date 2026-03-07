@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Track Request — Road Rescue{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('user.dashboard') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Request Details -->
+    <div class="col-lg-8">
+        <div class="rr-card p-4">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <h4 class="fw-700 mb-0"><i class="bi bi-file-earmark-text me-2 text-primary"></i>Request Details</h4>
+                {% set sc = {'Pending':'warning','Accepted':'info','Assigned':'primary','In
+                Process':'secondary','Completed':'success'} %}
+                <span class="badge bg-{{ sc.get(req.status,'secondary') }} fs-6 rr-badge">{{ req.status }}</span>
+            </div>
+
+            <!-- Status Progress -->
+            <div class="rr-progress-steps mb-4">
+                {% set steps = ['Pending','Accepted','Assigned','In Process','Completed'] %}
+                {% set current_idx = steps.index(req.status) if req.status in steps else 0 %}
+                {% for step in steps %}
+                <div class="rr-step {% if loop.index0 <= current_idx %}active{% endif %}">
+                    <div class="rr-step-dot"></div>
+                    <div class="rr-step-label small">{{ step }}</div>
+                </div>
+                {% if not loop.last %}<div class="rr-step-line {% if loop.index0 < current_idx %}active{% endif %}">
+                </div>{% endif %}
+                {% endfor %}
+            </div>
+
+            <table class="table rr-detail-table">
+                <tbody>
+                    <tr>
+                        <th>Vehicle Type</th>
+                        <td>{{ req.vehicle_type }}</td>
+                    </tr>
+                    <tr>
+                        <th>Company</th>
+                        <td>{{ req.vehicle_company }}</td>
+                    </tr>
+                    <tr>
+                        <th>Model</th>
+                        <td>{{ req.vehicle_model }}</td>
+                    </tr>
+                    <tr>
+                        <th>Year</th>
+                        <td>{{ req.vehicle_year }}</td>
+                    </tr>
+                    <tr>
+                        <th>Description</th>
+                        <td>{{ req.description }}</td>
+                    </tr>
+                    {% if req.location_name %}
+                    <tr>
+                        <th>Location</th>
+                        <td><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ req.location_name }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <th>Submitted</th>
+                        <td>{{ req.created_at.strftime('%d %b %Y, %I:%M %p') if req.created_at else '—' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            {% if req.status == 'Completed' %}
+            <hr class="border-secondary my-4">
+            <h5 class="fw-700 mb-3"><i class="bi bi-wallet2 me-2 text-warning"></i>Payment & Feedback</h5>
+
+            <div class="p-3 bg-dark border border-secondary rounded">
+                {% if req.payment_status == 'Pending' %}
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <p class="mb-1"><strong>Service Cost:</strong> <span class="text-success fs-5">${{
+                                "%.2f"|format(req.estimated_cost or 0) }}</span></p>
+                        <p class="mb-0 small text-muted">Please complete your payment securely.</p>
+                    </div>
+                    <a href="{{ url_for('payment.checkout', request_id=req._id) }}" class="btn btn-primary fw-700">
+                        Proceed to Payment<i class="bi bi-arrow-right ms-2"></i>
+                    </a>
+                </div>
+                {% elif req.payment_status == 'Completed' %}
+                <div class="mb-3">
+                    <p class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i><strong>Payment
+                            Completed</strong></p>
+                    <p class="mb-0 small">Transaction ID: {{ req.payment_id }} | Paid: {{ req.paid_at.strftime('%d %b
+                        %Y, %I:%M %p') if req.paid_at else '—' }}</p>
+                </div>
+
+                {% if not req.workshop_rating %}
+                <div class="mt-3">
+                    <p class="mb-2">How was your experience? Your feedback is valuable.</p>
+                    <a href="{{ url_for('payment.rate_service', request_id=req._id) }}"
+                        class="btn btn-sm btn-outline-warning fw-600">
+                        <i class="bi bi-star-fill me-1"></i>Rate Service
+                    </a>
+                </div>
+                {% else %}
+                <div class="mt-3">
+                    <p class="mb-1"><strong class="me-2">Your Rating:</strong>
+                        {% for i in range(req.workshop_rating|int) %}<i class="bi bi-star-fill text-warning"></i>{%
+                        endfor %}
+                    </p>
+                    {% if req.feedback_text %}
+                    <p class="mb-0 small text-muted fst-italic">"{{ req.feedback_text }}"</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Side cards -->
+    <div class="col-lg-4">
+        <!-- Workshop -->
+        <div class="rr-card p-3 mb-3">
+            <h6 class="fw-700 mb-2"><i class="bi bi-tools me-2 text-success"></i>Assigned Workshop</h6>
+            {% if workshop %}
+            <p class="mb-1 fw-600">{{ workshop.name }}</p>
+            <p class="small text-muted mb-1"><i class="bi bi-geo-alt me-1"></i>{{ workshop.location_name }}</p>
+            <p class="small mb-0"><i class="bi bi-envelope me-1"></i>{{ workshop.email }}</p>
+            {% else %}
+            <p class="text-muted small">Not yet assigned.</p>
+            {% endif %}
+        </div>
+
+        <!-- Mechanic -->
+        <div class="rr-card p-3 mb-3">
+            <h6 class="fw-700 mb-2"><i class="bi bi-person-badge me-2 text-primary"></i>Assigned Mechanic</h6>
+            {% if mechanic %}
+            <p class="mb-1 fw-600">{{ mechanic.name }}</p>
+            <p class="small mb-0"><i class="bi bi-envelope me-1"></i>{{ mechanic.email }}</p>
+            {% else %}
+            <p class="text-muted small">Not yet assigned.</p>
+            {% endif %}
+        </div>
+
+        <!-- Media -->
+        {% if req.media %}
+        <div class="rr-card p-3">
+            <h6 class="fw-700 mb-2"><i class="bi bi-images me-2 text-warning"></i>Uploaded Media</h6>
+            <div class="d-flex flex-wrap gap-2">
+                {% for file in req.media %}
+                {% if file.endswith('.mp4') %}
+                <video src="{{ url_for('static', filename=file) }}" controls class="rr-media-thumb"></video>
+                {% else %}
+                <a href="{{ url_for('static', filename=file) }}" target="_blank">
+                    <img src="{{ url_for('static', filename=file) }}" class="rr-media-thumb" alt="vehicle image">
+                </a>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

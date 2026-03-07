@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Login — Road Rescue{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* Full-screen background overlay for login page */
+    body {
+        background: none !important;
+    }
+
+    #login-bg {
+        position: fixed;
+        inset: 0;
+        background: url("{{ url_for('static', filename='login_bg.jpg') }}") center center / cover no-repeat;
+        z-index: -2;
+    }
+
+    #login-bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.58);
+        z-index: -1;
+    }
+
+    .login-wrapper {
+        min-height: calc(100vh - 70px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: 420px;
+        background: rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(18px) saturate(150%);
+        -webkit-backdrop-filter: blur(18px) saturate(150%);
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-radius: 1.2rem !important;
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45) !important;
+        color: #fff;
+    }
+
+    .login-card .form-label,
+    .login-card h2,
+    .login-card p,
+    .login-card strong {
+        color: #fff !important;
+    }
+
+    .login-card .text-muted {
+        color: rgba(255, 255, 255, 0.65) !important;
+    }
+
+    .login-card .form-control,
+    .login-card .input-group-text {
+        background: rgba(255, 255, 255, 0.12) !important;
+        border-color: rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+    }
+
+    .login-card .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.45) !important;
+    }
+
+    .login-card .rr-pill-label {
+        border-color: rgba(255, 255, 255, 0.25) !important;
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    .login-card .rr-pill-label.active {
+        border-color: #ffc107 !important;
+        color: #ffc107 !important;
+    }
+
+    .login-card hr {
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .login-card .rr-hint {
+        background: rgba(255, 255, 255, 0.07) !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    .login-card .btn-outline-secondary {
+        border-color: rgba(255, 255, 255, 0.3);
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Override base main.container so background fills the viewport */
+    main.container {
+        max-width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Background image layer -->
+<div id="login-bg"></div>
+
+<div class="login-wrapper">
+    <div class="login-card rr-card p-4">
+        <div class="text-center mb-4">
+            <i class="bi bi-truck-front-fill rr-hero-icon text-warning"></i>
+            <h2 class="fw-700 mt-2">Welcome Back</h2>
+            <p class="small">Sign in to Road Rescue</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.login') }}" id="loginForm">
+            <!-- Role Selector -->
+            <div class="mb-3">
+                <label class="form-label fw-600">Login As</label>
+                <div class="rr-role-pills d-flex gap-2 flex-wrap">
+                    {% for role, icon in
+                    [('user','person-circle'),('workshop','tools'),('mechanic','person-badge'),('admin','shield-check')]
+                    %}
+                    <div class="form-check rr-role-pill">
+                        <input class="form-check-input visually-hidden" type="radio" name="role" id="role_{{ role }}"
+                            value="{{ role }}" {% if loop.first %}checked{% endif %} required>
+                        <label class="form-check-label rr-pill-label" for="role_{{ role }}">
+                            <i class="bi bi-{{ icon }} me-1"></i>{{ role|title }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-600">Email</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" name="email" placeholder="you@example.com" required>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-600">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                    <input type="password" class="form-control" name="password" id="loginPassword"
+                        placeholder="••••••••" required>
+                    <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('loginPassword', this)">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-warning w-100 fw-700 rr-btn-main mt-2">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+            </button>
+        </form>
+
+        <hr class="my-3" />
+        <p class="text-center small">New here?</p>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('auth.register_user') }}" class="btn btn-outline-primary btn-sm w-100">
+                <i class="bi bi-person-plus me-1"></i>User
+            </a>
+            <a href="{{ url_for('auth.register_workshop') }}" class="btn btn-outline-success btn-sm w-100">
+                <i class="bi bi-building me-1"></i>Workshop
+            </a>
+        </div>
+
+        <div class="mt-3 p-2 rr-hint rounded small">
+            <strong>Admin default:</strong> admin@roadrescue.com / Admin@1234
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function togglePwd(id, btn) {
+        const inp = document.getElementById(id);
+        if (inp.type === 'password') { inp.type = 'text'; btn.innerHTML = '<i class="bi bi-eye-slash"></i>'; }
+        else { inp.type = 'password'; btn.innerHTML = '<i class="bi bi-eye"></i>'; }
+    }
+    document.querySelectorAll('.rr-role-pill input').forEach(el => {
+        el.addEventListener('change', () => {
+            document.querySelectorAll('.rr-pill-label').forEach(l => l.classList.remove('active'));
+            el.nextElementSibling.classList.add('active');
+        });
+        if (el.checked) el.nextElementSibling.classList.add('active');
+    });
+</script>
+{% endblock %}

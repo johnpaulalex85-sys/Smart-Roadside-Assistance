@@ -1,0 +1,319 @@
+/* ===================== Road Rescue — style.css ===================== */
+
+/* ─── Google Font ──────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --rr-primary:     #f59e0b;
+  --rr-primary-dk:  #d97706;
+  --rr-dark:        #0f172a;
+  --rr-surface:     #1e293b;
+  --rr-surface2:    #263249;
+  --rr-border:      rgba(255,255,255,0.08);
+  --rr-text:        #e2e8f0;
+  --rr-muted:       #94a3b8;
+  --rr-radius:      14px;
+  --rr-shadow:      0 4px 24px rgba(0,0,0,0.35);
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--rr-dark);
+  color: var(--rr-text);
+  min-height: 100vh;
+  font-size: 0.9rem;
+}
+
+/* ─── Utility ──────────────────────────────────────────────────────── */
+.fw-600  { font-weight: 600 !important; }
+.fw-700  { font-weight: 700 !important; }
+.fw-800  { font-weight: 800 !important; }
+
+/* ─── Navbar ───────────────────────────────────────────────────────── */
+.rr-navbar {
+  background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+  border-bottom: 1px solid var(--rr-border);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+  padding: 0.6rem 1.5rem;
+  min-height: 60px;
+}
+
+.rr-brand-icon  { font-size: 1.6rem; color: var(--rr-primary); }
+
+.navbar-nav .nav-link {
+  color: var(--rr-text) !important;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  transition: background 0.2s;
+}
+.navbar-nav .nav-link:hover { background: rgba(255,255,255,0.08); }
+
+.rr-role-badge {
+  background: rgba(245,158,11,0.2);
+  color: var(--rr-primary);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-radius: 20px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+/* ─── Cards ────────────────────────────────────────────────────────── */
+.rr-card {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  box-shadow: var(--rr-shadow);
+}
+
+/* ─── Stat Cards ───────────────────────────────────────────────────── */
+.rr-stat-card {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  border-left-width: 4px !important;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.rr-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+}
+.rr-stat-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+.rr-stat-num  { font-size: 2rem; font-weight: 800; line-height: 1.1; }
+.rr-stat-label{ font-size: 0.78rem; color: var(--rr-muted); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ─── Tables ───────────────────────────────────────────────────────── */
+.rr-table { color: var(--rr-text); }
+.rr-table thead tr { background: var(--rr-surface2); }
+.rr-table thead th {
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--rr-muted);
+  border-bottom: 1px solid var(--rr-border);
+  padding: 0.85rem 1rem;
+}
+.rr-table tbody tr { border-bottom: 1px solid var(--rr-border); }
+.rr-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.rr-table td { padding: 0.85rem 1rem; vertical-align: middle; }
+
+/* ─── Forms ────────────────────────────────────────────────────────── */
+.form-control, .form-select {
+  background: var(--rr-surface2) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  color: var(--rr-text) !important;
+  border-radius: 10px;
+}
+.form-control::placeholder { color: var(--rr-muted) !important; }
+.form-control:focus, .form-select:focus {
+  border-color: var(--rr-primary) !important;
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.2) !important;
+}
+.form-select option { background: var(--rr-surface2); }
+
+.input-group-text {
+  background: var(--rr-surface2);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--rr-muted);
+  border-radius: 10px 0 0 10px;
+}
+.input-group .form-control { border-radius: 0 10px 10px 0; }
+.input-group .form-control:last-child { border-radius: 0 10px 10px 0; }
+.input-group-text + .form-control { border-left: none !important; }
+
+/* ─── Buttons ──────────────────────────────────────────────────────── */
+.rr-btn-main {
+  padding: 0.6rem 1.5rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  transition: all 0.2s;
+}
+.rr-btn-main:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,158,11,0.3); }
+
+/* ─── Badges ───────────────────────────────────────────────────────── */
+.rr-badge {
+  padding: 0.4em 0.8em;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ─── Alert ────────────────────────────────────────────────────────── */
+.rr-alert { border-radius: var(--rr-radius); }
+
+/* ─── Hero Icon ────────────────────────────────────────────────────── */
+.rr-hero-icon { font-size: 2.5rem; }
+
+/* ─── Role Pills (Login) ───────────────────────────────────────────── */
+.rr-role-pills { flex-wrap: wrap; }
+.rr-pill-label {
+  cursor: pointer;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  color: var(--rr-muted);
+  transition: all 0.2s;
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: inline-block;
+}
+.rr-pill-label:hover { border-color: var(--rr-primary); color: var(--rr-primary); }
+.rr-pill-label.active {
+  background: rgba(245,158,11,0.15);
+  border-color: var(--rr-primary);
+  color: var(--rr-primary);
+}
+
+/* ─── Hint Box ─────────────────────────────────────────────────────── */
+.rr-hint {
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.1);
+}
+
+/* ─── Upload Zone ──────────────────────────────────────────────────── */
+.rr-upload-zone {
+  border: 2px dashed rgba(245,158,11,0.35);
+  border-radius: var(--rr-radius);
+  background: rgba(245,158,11,0.04);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.rr-upload-zone:hover { border-color: var(--rr-primary); background: rgba(245,158,11,0.08); }
+.rr-upload-zone.dragover { border-color: var(--rr-primary); background: rgba(245,158,11,0.12); transform: scale(1.01); }
+
+/* ─── Media Thumbnails ─────────────────────────────────────────────── */
+.rr-thumb, .rr-media-thumb {
+  width: 60px; height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--rr-border);
+}
+.rr-preview-item {
+  position: relative;
+  display: inline-block;
+}
+.rr-preview-img {
+  width: 80px; height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid var(--rr-border);
+}
+.rr-preview-remove {
+  position: absolute;
+  top: -6px; right: -6px;
+  width: 20px; height: 20px;
+  background: #ef4444;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.65rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ─── Progress Steps ───────────────────────────────────────────────── */
+.rr-progress-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+}
+.rr-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.rr-step-dot {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--rr-surface2);
+  border: 2.5px solid rgba(255,255,255,0.2);
+  transition: all 0.3s;
+}
+.rr-step.active .rr-step-dot {
+  background: var(--rr-primary);
+  border-color: var(--rr-primary);
+  box-shadow: 0 0 10px rgba(245,158,11,0.5);
+}
+.rr-step-label      { margin-top: 0.4rem; font-size: 0.72rem; color: var(--rr-muted); white-space: nowrap; }
+.rr-step.active .rr-step-label { color: var(--rr-primary); font-weight: 600; }
+
+.rr-step-line {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 6px;
+  margin-bottom: 20px;
+  transition: background 0.3s;
+}
+.rr-step-line.active { background: var(--rr-primary); }
+
+/* ─── Detail Table ─────────────────────────────────────────────────── */
+.rr-detail-table th { color: var(--rr-muted); font-weight: 600; width: 38%; padding: 0.6rem 0; }
+.rr-detail-table td { padding: 0.6rem 0; }
+
+/* ─── Footer ───────────────────────────────────────────────────────── */
+.rr-footer {
+  border-top: 1px solid var(--rr-border);
+  background: var(--rr-surface);
+  margin-top: auto;
+}
+
+/* ─── Modal ────────────────────────────────────────────────────────── */
+.rr-modal {
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  color: var(--rr-text);
+}
+
+/* ─── Quick Links ──────────────────────────────────────────────────── */
+.rr-quick-link {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: var(--rr-surface);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius);
+  text-decoration: none;
+  font-weight: 600;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.rr-quick-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+/* ─── Avatar ───────────────────────────────────────────────────────── */
+.rr-avatar-lg {
+  width: 56px; height: 56px;
+  background: rgba(245,158,11,0.15);
+  border: 2px solid rgba(245,158,11,0.3);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem;
+  color: var(--rr-primary);
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--rr-dark); }
+::-webkit-scrollbar-thumb { background: var(--rr-surface2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rr-muted); }
+
+/* ─── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 576px) {
+  .rr-stat-num { font-size: 1.5rem; }
+  .rr-hero-icon { font-size: 1.8rem; }
+}

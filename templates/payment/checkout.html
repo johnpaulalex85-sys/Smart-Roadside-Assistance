@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Checkout — Road Rescue{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="rr-card">
+            <h3 class="fw-700 text-center mb-4"><i class="bi bi-credit-card-fill text-primary me-2"></i>Secure Checkout
+            </h3>
+
+            <div class="bg-dark border border-secondary p-3 rounded mb-4">
+                <h5 class="fw-600 mb-3">Service Details</h5>
+                <p class="mb-1"><strong>Workshop:</strong> {{ workshop.name if workshop else 'Unknown' }}</p>
+                <p class="mb-1"><strong>Vehicle:</strong> {{ req.vehicle_type }} ({{ req.vehicle_company }} {{
+                    req.vehicle_model }})</p>
+                <p class="mb-0 fs-5 mt-2"><strong>Total Amount Due:</strong> <span class="text-success">${{
+                        "%.2f"|format(req.estimated_cost or 0) }}</span></p>
+            </div>
+
+            <form method="POST">
+                <h5 class="fw-600 mb-3">Payment Information</h5>
+
+                <div class="mb-3">
+                    <label class="form-label fw-600">Payment Method</label>
+                    <select class="form-select" name="payment_method" required>
+                        <option value="Credit Card">Credit / Debit Card</option>
+                        <option value="PayPal">PayPal</option>
+                        <option value="Digital Wallet">Apple Pay / Google Pay</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-600">Card Name</label>
+                    <input type="text" class="form-control" placeholder="Name on card" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-600">Card Number</label>
+                    <input type="text" class="form-control" placeholder="XXXX XXXX XXXX XXXX" required>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <label class="form-label fw-600">Expiry</label>
+                        <input type="text" class="form-control" placeholder="MM/YY" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label fw-600">CVV</label>
+                        <input type="password" class="form-control" placeholder="123" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 fw-700 py-2">
+                    <i class="bi bi-shield-lock-fill me-2"></i>Pay ${{ "%.2f"|format(req.estimated_cost or 0) }}
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

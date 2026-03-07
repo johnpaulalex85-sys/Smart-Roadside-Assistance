@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Manage Requests — Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary"><i
+            class="bi bi-arrow-left"></i></a>
+    <h3 class="fw-700 mb-0"><i class="bi bi-clipboard-data text-warning me-2"></i>All Service Requests</h3>
+    <span class="badge bg-warning text-dark ms-auto fs-6">{{ requests|length }}</span>
+</div>
+
+<div class="rr-card p-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Customer</th>
+                    <th>Vehicle</th>
+                    <th>Workshop</th>
+                    <th>Mechanic</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in requests %}
+                <tr>
+                    <td class="text-muted small">{{ loop.index }}</td>
+                    <td>
+                        <strong>{{ req.user.name if req.user else '—' }}</strong><br>
+                        <small class="text-muted">{{ req.user.email if req.user else '' }}</small>
+                    </td>
+                    <td class="small">
+                        <span class="fw-600">{{ req.vehicle_type }}</span><br>
+                        {{ req.vehicle_company }} {{ req.vehicle_model }} ({{ req.vehicle_year }})
+                    </td>
+                    <td class="small">{{ req.workshop.name if req.workshop else '—' }}</td>
+                    <td class="small">{{ req.mechanic.name if req.mechanic else '—' }}</td>
+                    <td>
+                        {% set sc = {'Pending':'warning','Accepted':'info','Assigned':'primary','In
+                        Process':'secondary','Completed':'success'} %}
+                        <span class="badge bg-{{ sc.get(req.status,'secondary') }} rr-badge">{{ req.status }}</span>
+                    </td>
+                    <td class="small text-muted">{{ req.created_at.strftime('%d %b %Y') if req.created_at else '—' }}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not requests %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">No service requests yet.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

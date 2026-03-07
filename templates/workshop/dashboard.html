@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Workshop Dashboard — Road Rescue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-700 mb-0"><i class="bi bi-tools text-success me-2"></i>{{ workshop.name }}</h2>
+        <p class="text-muted mb-0"><i class="bi bi-geo-alt me-1"></i>{{ workshop.location_name }}</p>
+    </div>
+    <button class="btn btn-success fw-700" data-bs-toggle="modal" data-bs-target="#addMechanicModal">
+        <i class="bi bi-person-plus-fill me-2"></i>Add Mechanic
+    </button>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-warning">
+            <div class="rr-stat-icon text-warning"><i class="bi bi-inbox"></i></div>
+            <div class="rr-stat-num">{{ stats.pending }}</div>
+            <div class="rr-stat-label">Pending</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-info">
+            <div class="rr-stat-icon text-info"><i class="bi bi-gear-wide-connected"></i></div>
+            <div class="rr-stat-num">{{ stats.active }}</div>
+            <div class="rr-stat-label">Active</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-success">
+            <div class="rr-stat-icon text-success"><i class="bi bi-check-circle"></i></div>
+            <div class="rr-stat-num">{{ stats.completed }}</div>
+            <div class="rr-stat-label">Completed</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rr-stat-card border-primary">
+            <div class="rr-stat-icon text-primary"><i class="bi bi-people"></i></div>
+            <div class="rr-stat-num">{{ stats.total_mechanics }}</div>
+            <div class="rr-stat-label">Mechanics</div>
+        </div>
+    </div>
+</div>
+
+<!-- Pending Requests -->
+<div class="rr-card p-0 mb-4">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-bell text-warning"></i>
+        <h5 class="mb-0 fw-700">New / Pending Requests</h5>
+        <span class="badge bg-warning text-dark ms-auto">{{ pending_requests|length }}</span>
+    </div>
+    {% if pending_requests %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Vehicle</th>
+                    <th>Description</th>
+                    <th>Media</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in pending_requests %}
+                <tr>
+                    <td>
+                        <strong>{{ req.user.name if req.user else 'Unknown' }}</strong><br>
+                        <small class="text-muted">{{ req.user.phone if req.user else '' }}</small>
+                    </td>
+                    <td>
+                        <span class="fw-600">{{ req.vehicle_type }}</span> — {{ req.vehicle_company }}<br>
+                        <small class="text-muted">{{ req.vehicle_model }} ({{ req.vehicle_year }})</small>
+                        {% if req.location_name %}
+                        <div class="mt-1 small"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ req.location_name
+                            }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="small">{{ req.description[:80] }}{% if req.description|length > 80 %}…{% endif %}</td>
+                    <td>
+                        {% if req.media %}
+                        {% for m in req.media[:2] %}
+                        {% if m.endswith('.mp4') %}
+                        <video src="{{ url_for('static', filename=m) }}" class="rr-thumb" controls></video>
+                        {% else %}
+                        <a href="{{ url_for('static', filename=m) }}" target="_blank">
+                            <img src="{{ url_for('static', filename=m) }}" class="rr-thumb" alt="">
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                        {% else %}<span class="text-muted small">None</span>{% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-success fw-600" data-bs-toggle="modal"
+                            data-bs-target="#acceptRequestModal{{ req._id }}">
+                            <i class="bi bi-check-lg me-1"></i>Accept
+                        </button>
+
+                        <!-- Accept Request Modal -->
+                        <div class="modal fade" id="acceptRequestModal{{ req._id }}" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <form method="POST"
+                                    action="{{ url_for('workshop.accept_request', request_id=req._id) }}"
+                                    class="modal-content rr-modal text-start">
+                                    <div class="modal-header border-0">
+                                        <h5 class="modal-title fw-700">Accept Request</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <label class="form-label fw-600">Initial Estimated Cost ($) <span
+                                                class="text-danger">*</span></label>
+                                        <input type="number" step="0.01" min="0" class="form-control"
+                                            name="estimated_cost" placeholder="e.g. 50.00" required>
+                                        <small class="text-muted d-block mt-2">Enter an estimated diagnostic/service
+                                            cost for the user. They will pay this amount upon completion.</small>
+                                    </div>
+                                    <div class="modal-footer border-0">
+                                        <button type="button" class="btn btn-outline-secondary"
+                                            data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-success fw-700">Confirm & Accept</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted"><i class="bi bi-inbox display-5 d-block mb-2"></i>No pending requests.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Accepted Requests -->
+<div class="rr-card p-0 mb-4">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-clipboard-check text-primary"></i>
+        <h5 class="mb-0 fw-700">My Accepted Requests</h5>
+    </div>
+    {% if accepted_requests %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Vehicle</th>
+                    <th>Status</th>
+                    <th>Mechanic</th>
+                    <th>Assign</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in accepted_requests %}
+                <tr>
+                    <td>{{ req.user.name if req.user else '—' }}</td>
+                    <td>
+                        {{ req.vehicle_type }} — {{ req.vehicle_company }} {{ req.vehicle_model }}
+                        {% if req.location_name %}
+                        <div class="small"><i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ req.location_name }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set sc = {'Accepted':'info','Assigned':'primary','In
+                        Process':'secondary','Completed':'success'} %}
+                        <span class="badge bg-{{ sc.get(req.status,'secondary') }} rr-badge">{{ req.status }}</span>
+                    </td>
+                    <td>{{ req.mechanic.name if req.mechanic else '<span class="text-muted small">Not
+                            assigned</span>'|safe }}</td>
+                    <td>
+                        {% if req.status not in ['Completed','In Process'] %}
+                        <form method="POST" action="{{ url_for('workshop.assign_mechanic', request_id=req._id) }}"
+                            class="d-flex gap-2">
+                            <select class="form-select form-select-sm" name="mechanic_id" required>
+                                <option value="">-- Mechanic --</option>
+                                {% for m in available_mechanics %}
+                                <option value="{{ m._id }}">{{ m.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-sm btn-primary"><i class="bi bi-person-check"></i></button>
+                        </form>
+                        {% else %}<span class="text-muted small">—</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">No accepted requests yet.</div>
+    {% endif %}
+</div>
+
+<!-- Mechanics List -->
+<div class="rr-card p-0">
+    <div class="p-3 border-bottom d-flex align-items-center gap-2">
+        <i class="bi bi-people-fill text-primary"></i>
+        <h5 class="mb-0 fw-700">My Mechanics</h5>
+    </div>
+    {% if mechanics %}
+    <div class="table-responsive">
+        <table class="table mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in mechanics %}
+                <tr>
+                    <td class="fw-600">{{ m.name }}</td>
+                    <td class="small text-muted">{{ m.email }}</td>
+                    <td>
+                        <span
+                            class="badge {% if m.status=='available' %}bg-success{% else %}bg-secondary{% endif %} rr-badge">
+                            {{ m.status|title }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-3 text-muted small">No mechanics added yet.</div>
+    {% endif %}
+</div>
+
+<!-- ─── Add Mechanic Modal ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="addMechanicModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rr-modal">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-700"><i class="bi bi-person-plus me-2 text-success"></i>Add New Mechanic</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('workshop.add_mechanic') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Full Name</label>
+                        <input type="text" class="form-control" name="name" placeholder="Mechanic name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Email</label>
+                        <input type="email" class="form-control" name="email" placeholder="mechanic@example.com"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-600">Password</label>
+                        <input type="password" class="form-control" name="password" placeholder="Min 6 characters"
+                            minlength="6" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success fw-700">
+                        <i class="bi bi-person-check me-1"></i>Add Mechanic
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

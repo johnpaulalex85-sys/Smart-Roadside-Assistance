@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Manage Users — Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center gap-2 mb-4">
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary"><i
+            class="bi bi-arrow-left"></i></a>
+    <h3 class="fw-700 mb-0"><i class="bi bi-people-fill text-primary me-2"></i>All Users</h3>
+    <span class="badge bg-primary ms-auto fs-6">{{ users|length }}</span>
+</div>
+
+<div class="rr-card p-0">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle rr-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Joined</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="text-muted small">{{ loop.index }}</td>
+                    <td class="fw-600">{{ u.name }}</td>
+                    <td class="small text-muted">{{ u.email }}</td>
+                    <td class="small">{{ u.phone }}</td>
+                    <td class="small text-muted">{{ u.created_at.strftime('%d %b %Y') if u.created_at else '—' }}</td>
+                    <td>
+                        {% if u.is_blocked %}
+                        <span class="badge bg-danger">Blocked</span>
+                        {% else %}
+                        <span class="badge bg-success">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.toggle_user_block', user_id=u._id) }}"
+                            class="d-inline">
+                            <button type="submit"
+                                class="btn btn-sm {% if u.is_blocked %}btn-outline-success{% else %}btn-outline-danger{% endif %}"
+                                onclick="return confirm('Are you sure you want to {% if u.is_blocked %}unblock{% else %}block{% endif %} this user?');">
+                                <i class="bi {% if u.is_blocked %}bi-unlock-fill{% else %}bi-lock-fill{% endif %}"></i>
+                                {% if u.is_blocked %}Unblock{% else %}Block{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not users %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">No users registered yet.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

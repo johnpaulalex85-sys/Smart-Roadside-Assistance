@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Request Service — Road Rescue{% endblock %}
+
+{% block content %}
+<!-- Leaflet CSS for Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="rr-card p-4">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <i class="bi bi-wrench-adjustable-circle-fill text-warning rr-hero-icon"></i>
+                <div>
+                    <h3 class="fw-700 mb-0">Request Roadside Service</h3>
+                    <p class="text-muted mb-0">Fill in your vehicle details and we'll send help.</p>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('user.request_service') }}" enctype="multipart/form-data"
+                id="serviceForm">
+
+                <div class="row g-3">
+                    {% if selected_workshop %}
+                    <div class="col-12 mb-2 p-3 bg-dark border border-warning rounded">
+                        <label class="form-label fw-600 text-warning"><i class="bi bi-shop me-2"></i>Direct
+                            Request</label>
+                        <p class="mb-0">You are requesting service directly from: <strong>{{ selected_workshop.name
+                                }}</strong></p>
+                        <input type="hidden" name="workshop_id" value="{{ selected_workshop._id }}">
+                    </div>
+                    {% endif %}
+
+                    {% if user.vehicles %}
+                    <div class="col-12 mb-2 p-3 bg-dark border border-secondary rounded">
+                        <label class="form-label fw-600 text-info"><i class="bi bi-star-fill me-2"></i>Select a Saved
+                            Vehicle (Optional)</label>
+                        <select class="form-select border-info" id="savedVehicleSelect" onchange="fillSavedVehicle()">
+                            <option value="">-- Choose a saved vehicle or enter manually below --</option>
+                            {% for v in user.vehicles %}
+                            <option value="{{ loop.index0 }}" data-type="{{ v.type }}" data-company="{{ v.company }}"
+                                data-model="{{ v.model }}" data-year="{{ v.year }}">
+                                {{ v.company }} {{ v.model }} ({{ v.year }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <!-- Vehicle Type -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-600">Vehicle Type <span class="text-danger">*</span></label>
+                        <select class="form-select" name="vehicle_type" id="vehicleType" required
+                            onchange="updateCompanies()">
+                            <option value="">-- Select Type --</option>
+                            <option>Car</option>
+                            <option>Bike</option>
+                            <option>Truck</option>
+                            <option>Tipper</option>
+                            <option>Van</option>
+                        </select>
+                    </div>
+
+                    <!-- Vehicle Company -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-600">Vehicle Company <span class="text-danger">*</span></label>
+                        <select class="form-select" name="vehicle_company" id="vehicleCompany" required>
+                            <option value="">-- Select Type First --</option>
+                        </select>
+                    </div>
+
+                    <!-- Vehicle Model -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-600">Vehicle Model <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-car-front"></i></span>
+                            <input type="text" class="form-control" name="vehicle_model"
+                                placeholder="e.g. Dzire, Activa" required>
+                        </div>
+                    </div>
+
+                    <!-- Year -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-600">Year of Manufacture <span class="text-danger">*</span></label>
+                        <select class="form-select" name="vehicle_year" id="vehicleYear" required>
+                            <option value="">-- Select Year --</option>
+                        </select>
+                    </div>
+
+                    <!-- Location Search -->
+                    <div class="col-12 position-relative">
+                        <label class="form-label fw-600">Breakdown Location <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-geo-alt-fill text-danger"></i></span>
+                            <input type="text" class="form-control" name="location_name" id="locationSearch"
+                                placeholder="Type location or use auto-detect..." required autocomplete="off">
+                            <button type="button" class="btn btn-outline-warning fw-600"
+                                onclick="detectGPSLocation()"><i class="bi bi-crosshair me-1"></i>Detect</button>
+                        </div>
+                        <div id="suggestions" class="rr-suggestions mt-1"></div>
+                        <input type="hidden" name="latitude" id="lat">
+                        <input type="hidden" name="longitude" id="lng">
+                        <small id="locationStatus" class="form-text text-muted mt-1 d-block"></small>
+
+                        <!-- Map Preview Container -->
+                        <div id="mapWrapper" style="display: none; margin-top: 10px;">
+                            <div id="workshopMap" class="rr-map-container" style="height: 250px; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-600">Problem Description <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="description" rows="4"
+                            placeholder="Describe the issue with your vehicle..." required minlength="10"></textarea>
+                    </div>
+
+                    <!-- Media Upload -->
+                    <div class="col-12">
+                        <label class="form-label fw-600">Upload Photos/Videos</label>
+                        <div class="rr-upload-zone" id="uploadZone">
+                            <i class="bi bi-cloud-upload display-5 text-muted"></i>
+                            <p class="mb-1 text-muted">Drag & drop or click to upload</p>
+                            <small class="text-muted">Allowed: jpg, jpeg, png, mp4 · Max 50 MB</small>
+                            <input type="file" class="rr-file-input d-none" id="mediaInput" name="media" multiple
+                                accept=".jpg,.jpeg,.png,.mp4">
+                        </div>
+                        <div id="previewContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mt-4">
+                    <a href="{{ url_for('user.dashboard') }}" class="btn btn-outline-secondary flex-fill">Cancel</a>
+                    <button type="submit" class="btn btn-warning fw-700 flex-fill rr-btn-main">
+                        <i class="bi bi-send-fill me-2"></i>Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Leaflet JS for Map -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vehicle.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upload_preview.js') }}"></script>
+<script>
+    // Initialize openstreetmap autocomplete
+    document.addEventListener("DOMContentLoaded", function () {
+        if (typeof initNominatimAutocomplete === 'function') {
+            initNominatimAutocomplete();
+        }
+        // Auto-detect location on load if they want
+        // detectGPSLocation(); 
+    });
+    // Populate year dropdown
+    const yearSel = document.getElementById('vehicleYear');
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= 1990; y--) {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        yearSel.appendChild(o);
+    }
+
+    // Auto-fill from saved vehicle
+    function fillSavedVehicle() {
+        const sel = document.getElementById('savedVehicleSelect');
+        if (!sel || sel.value === "") return;
+
+        const opt = sel.options[sel.selectedIndex];
+
+        // Type
+        const vType = document.getElementById('vehicleType');
+        vType.value = opt.getAttribute('data-type');
+        vType.dispatchEvent(new Event('change')); // triggers company population
+
+        // Wait briefly for the companies to populate, then set company, model, year
+        setTimeout(() => {
+            document.getElementById('vehicleCompany').value = opt.getAttribute('data-company');
+            document.querySelector('input[name="vehicle_model"]').value = opt.getAttribute('data-model');
+            document.getElementById('vehicleYear').value = opt.getAttribute('data-year');
+        }, 100);
+    }
+</script>
+{% endblock %}
