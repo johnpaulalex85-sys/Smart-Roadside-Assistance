@@ -130,6 +130,7 @@ def register_workshop():
         phone = request.form.get("phone", "").strip()
         password = request.form.get("password", "")
         location_name = request.form.get("location_name", "").strip()
+        workshop_type = request.form.get("workshop_type", "").strip()
         
         lat_str = request.form.get("latitude", "0").strip()
         lng_str = request.form.get("longitude", "0").strip()
@@ -158,6 +159,7 @@ def register_workshop():
                 "type": "Point",
                 "coordinates": [longitude, latitude],
             },
+            "workshop_type": workshop_type,
             "role": "workshop",
             "failed_attempts": 0,
             "locked_until": None,

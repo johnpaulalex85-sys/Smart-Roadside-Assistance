@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Workshop Details — Admin{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('admin.manage_workshops') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Workshops
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Workshop Info -->
+    <div class="col-lg-4">
+        <div class="rr-card p-4 h-100">
+            <h4 class="fw-700 mb-3"><i class="bi bi-shop text-success me-2"></i>{{ workshop.name }}</h4>
+            <div class="mb-3">
+                {% if workshop.is_blocked %}
+                <span class="badge bg-danger">Blocked</span>
+                {% elif workshop.status == 'approved' %}
+                <span class="badge bg-success">Approved</span>
+                {% elif workshop.status == 'pending' %}
+                <span class="badge bg-warning text-dark">Pending</span>
+                {% else %}
+                <span class="badge bg-secondary">{{ workshop.status | title }}</span>
+                {% endif %}
+
+                {% if workshop.workshop_type %}
+                <span class="badge bg-info text-dark ms-1">{{ workshop.workshop_type }}</span>
+                {% endif %}
+            </div>
+
+            <p class="mb-2"><i class="bi bi-envelope text-primary me-2"></i>{{ workshop.email }}</p>
+            <p class="mb-2"><i class="bi bi-telephone text-primary me-2"></i>{{ workshop.phone }}</p>
+            <p class="mb-2"><i class="bi bi-geo-alt text-danger me-2"></i>{{ workshop.location_name }}</p>
+
+            <hr class="border-secondary my-4">
+
+            <h5 class="fw-700 mb-3"><i class="bi bi-bar-chart-fill text-warning me-2"></i>Statistics</h5>
+            <ul class="list-group list-group-flush bg-transparent">
+                <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
+                    Total Mechanics
+                    <span class="badge bg-primary rounded-pill">{{ stats.total_mechanics }}</span>
+                </li>
+                <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
+                    Total Requests
+                    <span class="badge bg-primary rounded-pill">{{ stats.total_requests }}</span>
+                </li>
+                <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
+                    Completed Requests
+                    <span class="badge bg-success rounded-pill">{{ stats.completed_requests }}</span>
+                </li>
+                <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center">
+                    Pending/Active Requests
+                    <span class="badge bg-warning text-dark rounded-pill">{{ stats.pending_requests }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <!-- Mechanics List -->
+        <div class="rr-card p-4 mb-4">
+            <h5 class="fw-700 mb-3"><i class="bi bi-person-gear text-primary me-2"></i>Mechanics</h5>
+            {% if mechanics %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 rr-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in mechanics %}
+                        <tr>
+                            <td class="fw-600">{{ m.name }}</td>
+                            <td class="small">{{ m.email }}</td>
+                            <td class="small">{{ m.phone }}</td>
+                            <td>
+                                {% if m.is_blocked %}
+                                <span class="badge bg-danger">Blocked</span>
+                                {% else %}
+                                <span class="badge bg-success">Active</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">No mechanics registered for this workshop.</p>
+            {% endif %}
+        </div>
+
+        <!-- Service Requests -->
+        <div class="rr-card p-4">
+            <h5 class="fw-700 mb-3"><i class="bi bi-journals text-warning me-2"></i>Service Requests</h5>
+            {% if requests %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 rr-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Vehicle</th>
+                            <th>Status</th>
+                            <th>Mechanic</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in requests %}
+                        <tr>
+                            <td class="small">
+                                {% if req.user %}
+                                <span class="fw-600">{{ req.user.name }}</span><br>
+                                <span class="text-muted">{{ req.user.phone }}</span>
+                                {% else %}
+                                Unknown User
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                <span class="fw-600">{{ req.vehicle_type }}</span><br>
+                                <span class="text-muted">{{ req.vehicle_company }} {{ req.vehicle_model }}</span>
+                            </td>
+                            <td>
+                                {% set sc = {'Pending':'warning','Accepted':'info','Assigned':'primary','In
+                                Process':'secondary','Completed':'success'} %}
+                                <span class="badge bg-{{ sc.get(req.status, 'secondary') }}">{{ req.status }}</span>
+                            </td>
+                            <td class="small">
+                                {{ req.mechanic.name if req.mechanic else 'Unassigned' }}
+                            </td>
+                            <td class="small text-muted">
+                                {{ req.created_at.strftime('%d %b %Y') if req.created_at else '—' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">No service requests assigned to this workshop yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

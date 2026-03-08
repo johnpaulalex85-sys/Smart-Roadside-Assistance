@@ -57,6 +57,10 @@ function initNominatimAutocomplete() {
         document.getElementById('locationStatus').textContent =
             `📍 Coordinates captured: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
+        if (typeof window.onLocationUpdated === 'function') {
+            window.onLocationUpdated(lat, lng);
+        }
+
         // Show map preview
         const mapWrapper = document.getElementById('mapWrapper');
         if (mapWrapper) {
@@ -105,6 +109,10 @@ function detectGPSLocation() {
                         document.getElementById('lat').value = lat;
                         document.getElementById('lng').value = lng;
                         status.textContent = `📍 Location auto-detected: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+
+                        if (typeof window.onLocationUpdated === 'function') {
+                            window.onLocationUpdated(lat, lng);
+                        }
 
                         const mapWrapper = document.getElementById('mapWrapper');
                         if (mapWrapper) {

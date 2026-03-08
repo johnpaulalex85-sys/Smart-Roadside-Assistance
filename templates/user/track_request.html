@@ -136,6 +136,8 @@
             <h6 class="fw-700 mb-2"><i class="bi bi-person-badge me-2 text-primary"></i>Assigned Mechanic</h6>
             {% if mechanic %}
             <p class="mb-1 fw-600">{{ mechanic.name }}</p>
+            <p class="small mb-1"><i class="bi bi-telephone text-primary me-1"></i><a href="tel:{{ mechanic.phone }}"
+                    class="text-decoration-none text-white">{{ mechanic.phone }}</a></p>
             <p class="small mb-0"><i class="bi bi-envelope me-1"></i>{{ mechanic.email }}</p>
             {% else %}
             <p class="text-muted small">Not yet assigned.</p>

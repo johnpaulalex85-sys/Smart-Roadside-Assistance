@@ -185,8 +185,18 @@
                             {% if req.status == 'Pending' %}
                             <form method="POST" action="{{ url_for('user.cancel_request', request_id=req._id) }}"
                                 class="d-inline" onsubmit="return confirm('Cancel this request?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel Request">
+                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Cancel Request">
                                     <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+
+                            {% if req.status in ['Pending', 'Cancelled', 'Completed', 'Rejected'] %}
+                            <form method="POST" action="{{ url_for('user.delete_request', request_id=req._id) }}"
+                                class="d-inline"
+                                onsubmit="return confirm('Delete this request permanently? This action cannot be undone.');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Request">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </form>
                             {% endif %}

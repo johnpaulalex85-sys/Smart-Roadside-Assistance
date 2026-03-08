@@ -101,6 +101,48 @@ def toggle_workshop_block(workshop_id):
         flash(f"Workshop {'blocked' if new_status else 'unblocked'} successfully.", "success")
     return redirect(url_for("admin.manage_workshops"))
 
+@admin_bp.route("/workshops/<workshop_id>/delete", methods=["POST"])
+@login_required
+def delete_workshop(workshop_id):
+    # Delete the workshop
+    result = mongo.db.workshops.delete_one({"_id": ObjectId(workshop_id)})
+    if result.deleted_count > 0:
+        # Cascade delete mechanics for this workshop
+        mongo.db.mechanics.delete_many({"workshop_id": ObjectId(workshop_id)})
+        # Unlink workshop from existing requests
+        mongo.db.service_requests.update_many(
+            {"workshop_id": ObjectId(workshop_id)},
+            {"$set": {"workshop_id": None, "status": "Pending"}}
+        )
+        flash("Workshop deleted successfully.", "success")
+    else:
+        flash("Workshop not found.", "danger")
+    return redirect(url_for("admin.manage_workshops"))
+
+@admin_bp.route("/workshops/<workshop_id>/view")
+@login_required
+def view_workshop(workshop_id):
+    workshop = mongo.db.workshops.find_one({"_id": ObjectId(workshop_id)})
+    if not workshop:
+        flash("Workshop not found.", "danger")
+        return redirect(url_for("admin.manage_workshops"))
+        
+    mechanics = list(mongo.db.mechanics.find({"workshop_id": ObjectId(workshop_id)}))
+    requests_list = list(mongo.db.service_requests.find({"workshop_id": ObjectId(workshop_id)}).sort("created_at", -1))
+    
+    for req in requests_list:
+        req["user"] = mongo.db.users.find_one({"_id": req.get("user_id")})
+        req["mechanic"] = next((m for m in mechanics if m["_id"] == req.get("assigned_mechanic_id")), None)
+        
+    stats = {
+        "total_mechanics": len(mechanics),
+        "total_requests": len(requests_list),
+        "completed_requests": sum(1 for r in requests_list if r.get("status") == "Completed"),
+        "pending_requests": sum(1 for r in requests_list if r.get("status") in ["Pending", "Accepted", "Assigned", "In Process"])
+    }
+        
+    return render_template("admin/view_workshop.html", workshop=workshop, mechanics=mechanics, requests=requests_list, stats=stats)
+
 
 # ─── Manage Requests ──────────────────────────────────────────────────────────
 @admin_bp.route("/requests")

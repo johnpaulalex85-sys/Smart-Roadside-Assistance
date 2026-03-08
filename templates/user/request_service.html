@@ -29,6 +29,8 @@
                                 }}</strong></p>
                         <input type="hidden" name="workshop_id" value="{{ selected_workshop._id }}">
                     </div>
+                    {% else %}
+                    <input type="hidden" name="workshop_id" id="selectedWorkshopId">
                     {% endif %}
 
                     {% if user.vehicles %}
@@ -51,13 +53,27 @@
                     <div class="col-md-6">
                         <label class="form-label fw-600">Vehicle Type <span class="text-danger">*</span></label>
                         <select class="form-select" name="vehicle_type" id="vehicleType" required
-                            onchange="updateCompanies()">
+                            onchange="autoSetWorkshopType()">
                             <option value="">-- Select Type --</option>
                             <option>Car</option>
                             <option>Bike</option>
                             <option>Truck</option>
                             <option>Tipper</option>
                             <option>Van</option>
+                        </select>
+                    </div>
+
+                    <!-- Workshop Type Required -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-600">Workshop Type Required <span
+                                class="text-danger">*</span></label>
+                        <select class="form-select border-warning" name="workshop_type" id="workshopType" required
+                            onchange="triggerFetchNearby()">
+                            <option value="">-- Select Workshop Type --</option>
+                            <option>Car Repair</option>
+                            <option>Bike Repair</option>
+                            <option>Heavy Vehicle</option>
+                            <option>All Vehicles</option>
                         </select>
                     </div>
 
@@ -107,6 +123,16 @@
                             <div id="workshopMap" class="rr-map-container" style="height: 250px; border-radius: 8px;">
                             </div>
                         </div>
+
+                        <!-- Nearby Workshops Container -->
+                        <div id="nearbyWorkshopsDiv" class="mt-3 p-3 bg-dark border border-secondary rounded"
+                            style="display: none;">
+                            <label class="form-label fw-600 text-info"><i class="bi bi-shop me-2"></i>Nearby
+                                Workshops</label>
+                            <p class="small text-muted mb-2">Select a workshop from the list below. If none is selected,
+                                the request will be broadcasted to all.</p>
+                            <div id="nearbyWorkshopsList" class="row g-2"></div>
+                        </div>
                     </div>
 
                     <!-- Description -->
@@ -155,9 +181,31 @@
         if (typeof initNominatimAutocomplete === 'function') {
             initNominatimAutocomplete();
         }
-        // Auto-detect location on load if they want
-        // detectGPSLocation(); 
     });
+
+    // Auto-set the Workshop Type when Vehicle Type is changed
+    function autoSetWorkshopType() {
+        if (typeof updateCompanies === 'function') {
+            updateCompanies();
+        }
+        const vType = document.getElementById('vehicleType').value;
+        const wType = document.getElementById('workshopType');
+
+        let previousVal = wType.value;
+        if (vType === 'Car' || vType === 'Van') {
+            wType.value = 'Car Repair';
+        } else if (vType === 'Bike') {
+            wType.value = 'Bike Repair';
+        } else if (vType === 'Truck' || vType === 'Tipper') {
+            wType.value = 'Heavy Vehicle';
+        } else {
+            wType.value = '';
+        }
+
+        if (previousVal !== wType.value && wType.value !== '') {
+            triggerFetchNearby();
+        }
+    }
     // Populate year dropdown
     const yearSel = document.getElementById('vehicleYear');
     const currentYear = new Date().getFullYear();
@@ -185,6 +233,69 @@
             document.querySelector('input[name="vehicle_model"]').value = opt.getAttribute('data-model');
             document.getElementById('vehicleYear').value = opt.getAttribute('data-year');
         }, 100);
+    }
+
+    let lastLat = null;
+    let lastLng = null;
+
+    window.onLocationUpdated = function (lat, lng) {
+        lastLat = lat;
+        lastLng = lng;
+        fetchNearbyWorkshops(lat, lng);
+    };
+
+    function triggerFetchNearby() {
+        if (lastLat && lastLng) {
+            fetchNearbyWorkshops(lastLat, lastLng);
+        }
+    }
+
+    function fetchNearbyWorkshops(lat, lng) {
+        const wt = document.getElementById('workshopType').value;
+        const resList = document.getElementById('nearbyWorkshopsList');
+        const resDiv = document.getElementById('nearbyWorkshopsDiv');
+
+        if (!lat || !lng) return;
+
+        resDiv.style.display = 'block';
+        resList.innerHTML = '<div class="col-12 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Finding workshops...</div>';
+
+        fetch(`/user/nearby_workshops?lat=${lat}&lng=${lng}&type=${encodeURIComponent(wt)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    resList.innerHTML = `<div class="col-12 text-warning">${data.error}</div>`;
+                    return;
+                }
+                if (data.length === 0) {
+                    resList.innerHTML = `<div class="col-12 text-info small">No nearby workshops found for this type. Your request will be open for any workshop to accept.</div>`;
+                    document.getElementById('selectedWorkshopId').value = '';
+                    return;
+                }
+
+                let html = '';
+                data.forEach(w => {
+                    html += `
+                    <div class="col-md-6">
+                        <div class="card bg-dark border border-secondary h-100 workshop-card" style="cursor: pointer;" onclick="selectWorkshop('${w.id}', this)">
+                            <div class="card-body p-2">
+                                <h6 class="fw-700 mb-1 text-warning">${w.name}</h6>
+                                <p class="small text-muted mb-0"><i class="bi bi-geo-alt me-1"></i>${w.location_name}</p>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+                resList.innerHTML = html;
+            })
+            .catch(err => {
+                resList.innerHTML = `<div class="col-12 text-danger">Error loading workshops.</div>`;
+            });
+    }
+
+    function selectWorkshop(wId, cardElem) {
+        document.getElementById('selectedWorkshopId').value = wId;
+        document.querySelectorAll('.workshop-card').forEach(c => c.classList.remove('border-primary', 'bg-primary', 'text-white'));
+        cardElem.classList.add('border-primary', 'bg-primary', 'text-white');
     }
 </script>
 {% endblock %}

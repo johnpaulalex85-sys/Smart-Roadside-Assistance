@@ -53,6 +53,7 @@ def request_service():
         vehicle_model = request.form.get("vehicle_model", "")
         vehicle_year = request.form.get("vehicle_year", "")
         description = request.form.get("description", "")
+        workshop_type_requested = request.form.get("workshop_type", "")
         
         location_name = request.form.get("location_name", "").strip()
         lat_str = request.form.get("latitude", "0").strip()
@@ -85,6 +86,7 @@ def request_service():
             "vehicle_model": vehicle_model,
             "vehicle_year": vehicle_year,
             "description": description,
+            "workshop_type_requested": workshop_type_requested,
             "location_name": location_name,
             "location_coords": [longitude, latitude],
             "media": media,
@@ -149,18 +151,26 @@ def track_request(request_id):
 def nearby_workshops():
     lat = request.args.get("lat")
     lng = request.args.get("lng")
+    workshop_type = request.args.get("type", "").strip()
+    
     if not lat or not lng:
         return jsonify({"error": "Missing coordinates"}), 400
     try:
-        workshops = list(
-            mongo.db.workshops.find({
-                "location": {
-                    "$near": {
-                        "$geometry": {"type": "Point", "coordinates": [float(lng), float(lat)]},
-                        "$maxDistance": 30000,
-                    }
+        query = {
+            "status": "approved",
+            "is_blocked": {"$ne": True},
+            "location": {
+                "$near": {
+                    "$geometry": {"type": "Point", "coordinates": [float(lng), float(lat)]},
+                    "$maxDistance": 30000,
                 }
-            }).limit(10)
+            }
+        }
+        if workshop_type:
+            query["workshop_type"] = {"$in": [workshop_type, "All Vehicles"]}
+            
+        workshops = list(
+            mongo.db.workshops.find(query).limit(10)
         )
         result = []
         for w in workshops:
@@ -241,5 +251,27 @@ def cancel_request(request_id):
         {"$set": {"status": "Cancelled"}}
     )
     flash("Service request cancelled successfully.", "success")
+    return redirect(url_for("user.dashboard"))
+
+
+# ─── Delete Request ───────────────────────────────────────────────────────────
+@user_bp.route("/request/delete/<request_id>", methods=["POST"])
+@login_required
+def delete_request(request_id):
+    req = mongo.db.service_requests.find_one({
+        "_id": ObjectId(request_id),
+        "user_id": ObjectId(session["user_id"])
+    })
+    if not req:
+        flash("Request not found.", "danger")
+        return redirect(url_for("user.dashboard"))
+        
+    # Prevent deleting active requests
+    if req.get("status") in ["Accepted", "Assigned", "In Process"]:
+        flash("Cannot delete an active request. Please wait until it is completed or contact support.", "warning")
+        return redirect(url_for("user.dashboard"))
+        
+    mongo.db.service_requests.delete_one({"_id": ObjectId(request_id)})
+    flash("Service request deleted successfully.", "success")
     return redirect(url_for("user.dashboard"))
 
