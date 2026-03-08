@@ -142,6 +142,29 @@ def add_mechanic():
     return redirect(url_for("workshop.dashboard"))
 
 
+# ─── Delete Mechanic ──────────────────────────────────────────────────────────
+@workshop_bp.route("/delete_mechanic/<mechanic_id>", methods=["POST"])
+@login_required
+def delete_mechanic(mechanic_id):
+    mechanic = mongo.db.mechanics.find_one({"_id": ObjectId(mechanic_id), "workshop_id": ObjectId(session["workshop_id"])})
+    if not mechanic:
+        flash("Mechanic not found.", "danger")
+        return redirect(url_for("workshop.dashboard"))
+
+    # Optional: We could check if they have active jobs, but for simplicity we allow deletion.
+    # Alternatively we just delete them. If they have active jobs, the workshop might need to reassign.
+    mongo.db.mechanics.delete_one({"_id": ObjectId(mechanic_id)})
+    
+    # Reset any active requests assigned to this mechanic back to workshop pool
+    mongo.db.service_requests.update_many(
+        {"assigned_mechanic_id": ObjectId(mechanic_id), "status": "Assigned"},
+        {"$set": {"assigned_mechanic_id": None, "status": "Accepted"}}
+    )
+
+    flash(f"Mechanic '{mechanic['name']}' deleted successfully.", "success")
+    return redirect(url_for("workshop.dashboard"))
+
+
 # ─── Available Mechanics JSON ─────────────────────────────────────────────────
 @workshop_bp.route("/mechanics_json")
 @login_required

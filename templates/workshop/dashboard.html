@@ -210,6 +210,7 @@
                     <th>Name</th>
                     <th>Email</th>
                     <th>Status</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -222,6 +223,15 @@
                             class="badge {% if m.status=='available' %}bg-success{% else %}bg-secondary{% endif %} rr-badge">
                             {{ m.status|title }}
                         </span>
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('workshop.delete_mechanic', mechanic_id=m._id) }}"
+                            class="d-inline"
+                            onsubmit="return confirm('Are you sure you want to delete this mechanic? This action cannot be undone.');">
+                            <button type="submit" class="btn btn-sm btn-danger fw-600">
+                                <i class="bi bi-trash me-1"></i>Delete
+                            </button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
