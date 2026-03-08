@@ -39,6 +39,7 @@ def _allowed_role_login(collection, email, password, role_key, id_key):
             )
 
         session.clear()
+        session.permanent = True
         session[id_key] = str(record["_id"])
         session["role"] = role_key
         session["name"] = record.get("name", record.get("email", ""))
