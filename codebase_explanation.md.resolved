@@ -1,0 +1,955 @@
+# Road Rescue Application - Codebase Explanation
+
+This document provides a detailed line-by-line explanation of the core application files and their working flow.
+
+## 1. [app.py](file:///d:/project/new%20project/road_rescue/app.py) - Application Factory and Entry Point
+
+This file serves as the core entry point of the application. It uses the Flask application factory pattern.
+
+```python
+# Imports necessary standard library modules, Flask class, configuration class, database extension and password hashing utility.
+1: import os
+2: from flask import Flask
+3: from config import Config
+4: from extensions import mongo
+5: from werkzeug.security import generate_password_hash
+
+# The application factory function which creates and configures the Flask app instance.
+8: def create_app():
+# Instantiates the Flask app object.
+9:     app = Flask(__name__)
+# Loads configuration variables from the Config class in config.py.
+10:     app.config.from_object(Config)
+
+# Ensures that the directory specified in the UPLOAD_FOLDER configuration exists, creating it if it doesn't.
+12:     # Ensure upload folder exists
+13:     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+
+# Initializes the PyMongo extension with the created Flask app instance, enabling database connectivity.
+15:     mongo.init_app(app)
+
+# The following operations require the app context to be active to interact with the database.
+17:     # Create 2dsphere index for workshops + seed default admin
+18:     with app.app_context():
+19:         try:
+# Attempts to create a geospatial index "2dsphere" on the "location" field of the "workshops" collection.
+# This enables proximity searches (like finding nearby workshops based on GPS coordinates).
+20:             mongo.db.workshops.create_index([("location", "2dsphere")])
+21:         except Exception:
+# Catches and silently ignores any exception that occurs during index creation (e.g. if the index already exists).
+22:             pass
+
+# Checks if an admin account with the email "admin@smartroadsideassistance.com" already exists in the "admins" collection.
+24:         # Seed default admin account
+25:         if not mongo.db.admins.find_one({"email": "admin@smartroadsideassistance.com"}):
+# If it doesn't exist, it inserts a default admin document with a hashed password, establishing an initial administrative login.
+26:             mongo.db.admins.insert_one({
+27:                 "email": "admin@smartroadsideassistance.com",
+28:                 "name": "Super Admin",
+29:                 "password": generate_password_hash("Admin@1234"),
+30:                 "role": "admin",
+31:             })
+
+# Imports the defined blueprints (modules) for different parts of the application (authentication, user dashboard, workshop management, etc.)
+33:     # Register blueprints
+34:     from blueprints.auth import auth_bp
+35:     from blueprints.user import user_bp
+36:     from blueprints.workshop import workshop_bp
+37:     from blueprints.mechanic import mechanic_bp
+38:     from blueprints.admin import admin_bp
+39:     from blueprints.payment.routes import payment_bp
+
+# Registers each imported blueprint with the Flask application instance, mounting them under specific URL prefixes.
+# For example, all routes defined in auth_bp will be prefixed with /auth (e.g., /auth/login).
+41:     app.register_blueprint(auth_bp, url_prefix="/auth")
+42:     app.register_blueprint(user_bp, url_prefix="/user")
+43:     app.register_blueprint(workshop_bp, url_prefix="/workshop")
+44:     app.register_blueprint(mechanic_bp, url_prefix="/mechanic")
+45:     app.register_blueprint(admin_bp, url_prefix="/admin")
+46:     app.register_blueprint(payment_bp)  # Registers without prefix
+
+# Imports redirect and url_for for route redirection.
+48:     # Root redirect
+49:     from flask import redirect, url_for
+
+# Defines the root route ("/") of the application.
+51:     @app.route("/")
+52:     def index():
+# When a user visits the root URL "/"), they are immediately redirected to the "login" endpoint defined in the "auth" blueprint.
+53:         return redirect(url_for("auth.login"))
+
+# Returns the fully configured Flask application instance.
+55:     return app
+
+# The standard Python block that executes only if the script is run directly (not imported as a module).
+58: if __name__ == "__main__":
+# Calls the factory function to create the app.
+59:     app = create_app()
+# Starts the Flask development server in debug mode listening on port 5001.
+60:     app.run(debug=True, port=5001)
+```
+
+## 2. [config.py](file:///d:/project/new%20project/road_rescue/config.py) - Configuration Settings
+
+This file holds configuration parameters for the Flask application.
+
+```python
+# Imports standard os library for grabbing environment variables and timedelta for specifying durations.
+1: import os
+2: from datetime import timedelta
+
+# Defines a Config class which holds constants. Flask loads configurations directly from class attributes.
+4: class Config:
+# Sets the secret key used for securely signing the session cookie. Retrieves from environment or defaults to the given string.
+5:     SECRET_KEY = os.environ.get("SECRET_KEY", "road_rescue_super_secret_key_2024")
+# Sets the MongoDB connection string. Uses environment variable or defaults to a hardcoded MongoDB Atlas credential.
+6:     MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://mechanicaluser:kolonia%40123@cluster0.7lpf3re.mongodb.net/road_rescue?appName=Cluster0")
+# Constructs the absolute path to the folder where user uploads (images, etc) are saved natively on the system.
+7:     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
+# Limits the maximum allowed payload to 50 MB, preventing users from uploading excessively large files that could affect server stability.
+8:     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
+# Defines a set of file extensions that the application accepts for file uploads.
+9:     ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "mp4"}
+# The API key required for rendering and using Google Maps services on the frontend.
+10:     GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "YOUR_GOOGLE_MAPS_API_KEY")
+# Specifies that persistent sessions should last for 30 days before users are logged out and need to re-authenticate.
+11:     PERMANENT_SESSION_LIFETIME = timedelta(days=30)
+```
+
+## 3. [blueprints/auth/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/auth/routes.py) - Authentication System
+
+This file manages user authentication, including login, logout, and registration logic for different roles (user, workshop, mechanic, admin).
+
+```python
+# Standard library imports
+1: import os
+2: import re
+# Flask core utilities for request handling, template rendering, sessions and flashing messages
+3: from flask import render_template, request, redirect, url_for, session, flash
+# Werkzeug utilities for securely hashing passwords before storing them
+4: from werkzeug.security import generate_password_hash, check_password_hash
+# Imports the blueprint object itself where these routes are registered
+5: from blueprints.auth import auth_bp
+# Database extension for MongoDB interaction
+6: from extensions import mongo
+# Date and time utilities for lockouts and tracking
+7: from datetime import datetime, timedelta
+# Custom utility for sending emails, likely used when a new account requires approval or verification
+8: from utils.notifications import send_email_notification
+
+# Helper function to enforce strong password policies
+11: def is_valid_password(pwd: str) -> bool:
+12:     if not isinstance(pwd, str): return False
+# Checks for minimum length of 8, at least one uppercase letter, and at least one digit
+13:     return len(pwd) >= 8 and bool(re.search(r"[A-Z]", pwd)) and bool(re.search(r"\d", pwd))
+
+# Core helper function for processing login attempts across multiple roles
+16: def _allowed_role_login(collection, email, password, role_key, id_key):
+# Looks up the user document by email in the dynamically specified collection (e.g. "users", "admins")
+17:     record = mongo.db[collection].find_one({"email": email})
+18:     if not record:
+19:         return None # User not found
+20: 
+21:     # Check if account is locked due to too many failed login attempts
+22:     if record.get("locked_until") and record["locked_until"] > datetime.utcnow():
+23:         return "LOCKED"
+24: 
+25:     # Check if the workshop account is still waiting for administrative approval
+26:     if role_key == "workshop" and record.get("status") == "pending":
+27:         return "PENDING_APPROVAL"
+28:         
+29:     # Check if the account has been explicitly blocked by an admin
+30:     if record.get("is_blocked"):
+31:         return "BLOCKED"
+32: 
+# Compares the provided plaintext password against the hash stored in the database
+33:     if check_password_hash(record["password"], password):
+34:         # If login is successful, reset the failed_attempts counter and unlock the account
+35:         if record.get("failed_attempts", 0) > 0:
+36:             mongo.db[collection].update_one(
+37:                 {"_id": record["_id"]},
+38:                 {"$set": {"failed_attempts": 0, "locked_until": None}}
+39:             )
+40: 
+# Clears old session data to prevent session fixation attacks
+41:         session.clear()
+42:         session.permanent = True # Enables the long-lived session defined in config.py
+# Sets the user's identifying info into the encrypted Flask session cookie
+43:         session[id_key] = str(record["_id"])
+44:         session["role"] = role_key
+45:         session["name"] = record.get("name", record.get("email", ""))
+46:         return record # Returns the user record indicating success
+47:     else:
+48:         # Increment failed attempts counter if password is wrong
+49:         attempts = record.get("failed_attempts", 0) + 1
+50:         updates = {"failed_attempts": attempts}
+# If there are 5 or more failed attempts, lock the account for 15 minutes
+51:         if attempts >= 5:
+52:             updates["locked_until"] = datetime.utcnow() + timedelta(minutes=15)
+53:         
+54:         mongo.db[collection].update_one({"_id": record["_id"]}, {"$set": updates})
+55:         return "INVALID"
+
+# Defines the actual route for the login page
+58: # ─── Login ───────────────────────────────────────────────────────────────────
+59: @auth_bp.route("/login", methods=["GET", "POST"])
+60: def login():
+61:     if request.method == "POST":
+# Retrieves form data sent by the browser
+62:         role = request.form.get("role")
+63:         email = request.form.get("email", "").strip().lower() # Normalizes email
+64:         password = request.form.get("password", "")
+65: 
+# Maps user roles to their respective MongoDB collections, session ID keys, and destination pages after login
+66:         collection_map = {
+67:             "user": ("users", "user_id", "user.dashboard"),
+68:             "workshop": ("workshops", "workshop_id", "workshop.dashboard"),
+69:             "mechanic": ("mechanics", "mechanic_id", "mechanic.dashboard"),
+70:             "admin": ("admins", "admin_id", "admin.dashboard")
+71:         }
+72: 
+73:         if role in collection_map:
+# Extracts the mapped configuration for the selected role
+74:             coll, id_key, endpoint = collection_map[role]
+# Calls the helper function to process verification
+75:             rec = _allowed_role_login(coll, email, password, role, id_key)
+76:             
+# Handles different return states from the verification helper
+77:             if isinstance(rec, dict):
+78:                 return redirect(url_for(endpoint)) # Success: Redirects to appropriate dashboard
+79:             elif rec == "LOCKED":
+80:                 flash("Account locked due to too many failed attempts. Try again in 15 minutes.", "danger")
+81:                 return render_template("auth/login.html")
+# ... Checks for PENDING_APPROVAL and BLOCKED similarly
+89:         flash("Invalid email or password. Please try again.", "danger")
+# Renders the login template on GET requests or on a totally invalid login attempt
+90:     return render_template("auth/login.html")
+
+# Defines user registration
+93: # ─── Register User ────────────────────────────────────────────────────────────
+94: @auth_bp.route("/register/user", methods=["GET", "POST"])
+95: def register_user():
+96:     if request.method == "POST":
+# Captures user inputs
+97:         name = request.form.get("name", "").strip()
+98:         email = request.form.get("email", "").strip().lower()
+99:         phone = request.form.get("phone", "").strip()
+100:         password = request.form.get("password", "")
+101: 
+# Validates password strength
+102:         if not is_valid_password(password):
+103:             flash("Password must be at least 8 characters long, contain an uppercase letter and a number.", "warning")
+104:             return redirect(url_for("auth.register_user"))
+105: 
+# Checks if the email is already registered in the system
+106:         if mongo.db.users.find_one({"email": email}):
+107:             flash("Email already registered.", "warning")
+108:             return redirect(url_for("auth.register_user"))
+109: 
+# Inserts new user record
+110:         mongo.db.users.insert_one({
+111:             "name": name,
+112:             "email": email,
+113:             "password": generate_password_hash(password),
+114:             "phone": phone,
+115:             "role": "user",
+116:             "failed_attempts": 0,
+117:             "locked_until": None,
+118:             "created_at": datetime.utcnow(),
+119:         })
+120:         flash("Registration successful! Please login.", "success")
+121:         return redirect(url_for("auth.login"))
+122:     return render_template("auth/register_user.html")
+
+# Defines workshop registration which handles location data and sets the status to "pending"
+125: # ─── Register Workshop ────────────────────────────────────────────────────────
+...
+# Note: Has very similar logic to Register User, but captures "location_name", "latitude", "longitude" and "workshop_type"
+# It then sends an email and sets the new workshop to "pending" to wait on Admin approval.
+
+# Deauthenticates a user immediately
+178: # ─── Logout ───────────────────────────────────────────────────────────────────
+179: @auth_bp.route("/logout")
+180: def logout():
+# Clears the entire session dictionary, removing user context
+181:     session.clear()
+182:     flash("You have been logged out.", "info")
+183:     return redirect(url_for("auth.login"))
+```
+
+## 4. [blueprints/user/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/user/routes.py) - User Dashboard & Service Requests
+
+This file contains all the features available to a logged-in user: viewing their dashboard, requesting support, adding vehicles, and searching for workshops.
+
+```python
+# Essential Flask tools plus secure file upload handling
+1: import os
+2: from flask import render_template, request, redirect, url_for, session, flash, current_app, jsonify
+3: from werkzeug.utils import secure_filename
+4: from blueprints.user import user_bp
+5: from extensions import mongo
+# MongoDB uses ObjectIds to reference document keys natively
+6: from bson import ObjectId
+# Sends an SMS to the user via an external service when a request is submitted
+7: from utils.notifications import send_sms_alert
+8: from datetime import datetime, timedelta
+
+# A decorator function that enforces route protection
+13: def login_required(f):
+14:     from functools import wraps
+15:     @wraps(f)
+16:     def decorated(*args, **kwargs):
+# If there is no active session with the role 'user', access is denied
+17:         if session.get("role") != "user":
+18:             flash("Please login as a user.", "warning")
+19:             return redirect(url_for("auth.login"))
+# If the check passes, executes the original wrapped route function
+20:         return f(*args, **kwargs)
+21:     return decorated
+
+# Helper to validate uploaded file formats (prevents uploading executables)
+24: def allowed_file(filename):
+25:     allowed = current_app.config["ALLOWED_EXTENSIONS"]
+26:     return "." in filename and filename.rsplit(".", 1)[1].lower() in allowed
+
+# Home page for the logged-in User
+30: @user_bp.route("/dashboard")
+31: @login_required
+32: def dashboard():
+# Grabs the user's data from the database using the ID in their session
+33:     user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
+# Retrieves all service requests created by this user, sorted newest first
+34:     requests_list = list(
+35:         mongo.db.service_requests.find({"user_id": ObjectId(session["user_id"])}).sort("created_at", -1)
+36:     )
+# Iterates through the requests to dynamically attach currently assigned mechanics and workshops for display
+38:     for req in requests_list:
+39:         if req.get("assigned_mechanic_id"):
+40:             req["mechanic"] = mongo.db.mechanics.find_one({"_id": req["assigned_mechanic_id"]})
+41:         if req.get("workshop_id"):
+42:             req["workshop"] = mongo.db.workshops.find_one({"_id": req["workshop_id"]})
+43:     return render_template("user/dashboard.html", user=user, requests=requests_list)
+
+# Route to create a new breakdown / service request
+47: @user_bp.route("/request", methods=["GET", "POST"])
+48: @login_required
+49: def request_service():
+50:     if request.method == "POST":
+# Extracts data submitted using HTML form controls
+51:         vehicle_type = request.form.get("vehicle_type", "")
+...
+58:         location_name = request.form.get("location_name", "").strip()
+# Parses coordinates submitted by the browser's GPS / map component
+59:         lat_str = request.form.get("latitude", "0").strip()
+60:         lng_str = request.form.get("longitude", "0").strip()
+61:         try:
+62:             latitude = float(lat_str) if lat_str else 0.0
+63:             longitude = float(lng_str) if lng_str else 0.0
+64:         except ValueError:
+65:             latitude = 0.0
+66:             longitude = 0.0
+
+# Handles multiple media (image/video) file uploads
+68:         media = []
+69:         files = request.files.getlist("media")
+70:         upload_folder = current_app.config["UPLOAD_FOLDER"]
+71:         for f in files:
+# For each valid file, creates a unique secure filename based on timestamp to avoid collisions
+72:             if f and f.filename and allowed_file(f.filename):
+73:                 filename = secure_filename(f.filename)
+74:                 # Make unique
+75:                 unique_name = f"{int(datetime.utcnow().timestamp())}_{filename}"
+76:                 save_path = os.path.join(upload_folder, unique_name)
+77:                 f.save(save_path) # Saves the file directly to the server disk
+78:                 media.append(f"uploads/{unique_name}") # Saves relative path to array
+
+# Saves the entire request as a new document in the "service_requests" collection
+80:         insert_result = mongo.db.service_requests.insert_one({
+81:             "user_id": ObjectId(session["user_id"]),
+82:             "workshop_id": None, # Unassigned initially
+...
+92:             "media": media, # The list of uploaded file paths
+93:             "status": "Pending",
+...
+98:         })
+99:         
+# A user might have clicked "Request" right from a specific workshop's page
+100:         # If directed to a specific workshop, update the query
+101:         workshop_id_param = request.form.get("workshop_id")
+102:         if workshop_id_param:
+# Assigns the request immediately to that workshop if applicable
+103:             mongo.db.service_requests.update_one(
+104:                 {"_id": insert_result.inserted_id},
+105:                 {"$set": {"workshop_id": ObjectId(workshop_id_param)}}
+106:             )
+107:         
+# Checks if the user provided a phone number and actively sends them an SMS confirmation
+108:         user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
+109:         if user and user.get("phone"):
+110:             send_sms_alert(user["phone"], f"Your Smart Roadside Assistance request...")
+111:             
+112:         flash("Service request submitted successfully!", "success")
+113:         return redirect(url_for("user.dashboard"))
+...
+
+# API-style route used by the front-end Map via JavaScript (AJAX/Fetch)
+149: @user_bp.route("/nearby_workshops", methods=["GET"])
+150: @login_required
+151: def nearby_workshops():
+# Grabs coordinates passed via URL query parameters
+152:     lat = request.args.get("lat")
+153:     lng = request.args.get("lng")
+...
+# Builds a geospatial query in MongoDB
+159:         query = {
+160:             "status": "approved",   # Workshop must be active
+161:             "is_blocked": {"$ne": True}, # Must not be blocked
+# $near performs a proximity search using a 2D sphere index
+162:             "location": {
+163:                 "$near": {
+164:                     "$geometry": {"type": "Point", "coordinates": [float(lng), float(lat)]},
+165:                     "$maxDistance": 30000, # Bounded to 30 km (in meters)
+166:                 }
+167:             }
+168:         }
+# Executes query, returning up to 10 nearest results, then maps them nicely to JSON for the front-end to render pins
+172:         workshops = list(
+173:             mongo.db.workshops.find(query).limit(10)
+174:         )
+
+# Profile route manages adding/removing personal vehicles that act as quick templates
+189: @user_bp.route("/profile", methods=["GET", "POST"])
+190: @login_required
+...
+208:             mongo.db.users.update_one(
+# Uses the $push MongoDB operator to append a new vehicle to the user's "vehicles" array list field
+209:                 {"_id": ObjectId(session["user_id"])},
+210:                 {"$push": {"vehicles": new_vehicle}}
+211:             )
+...
+# Uses pop and $set to remove vehicles based on their array index
+219:                 vehicles.pop(idx)
+220:                 mongo.db.users.update_one(
+221:                     {"_id": ObjectId(session["user_id"])},
+222:                     {"$set": {"vehicles": vehicles}}
+223:                 )
+```
+
+## 5. [blueprints/admin/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/admin/routes.py) - Administrator Portal
+
+This file governs the Super Admin dashboard and capabilities, providing full oversight and moderation across the entire platform.
+
+```python
+1: from flask import render_template, redirect, url_for, session, flash, request
+2: from blueprints.admin import admin_bp
+3: from extensions import mongo
+4: from werkzeug.security import generate_password_hash
+# Required to query MongoDB using its native ID format
+5: from bson import ObjectId
+
+# Decorator to ensure only explicitly defined admin roles can access these routes
+9: def login_required(f):
+10:     from functools import wraps
+11:     @wraps(f)
+12:     def decorated(*args, **kwargs):
+13:         if session.get("role") != "admin": # Strict role check
+14:             flash("Please login as an admin.", "warning")
+15:             return redirect(url_for("auth.login"))
+16:         return f(*args, **kwargs)
+17:     return decorated
+
+# Helper to ensure there's always an admin account present, recreated on dashboard load if missing
+20: def _seed_admin():
+21:     """Insert a default admin if none exists."""
+22:     if not mongo.db.admins.find_one({"email": "admin@smartroadsideassistance.com"}):
+23:         mongo.db.admins.insert_one({
+24:             "email": "admin@smartroadsideassistance.com",
+25:             "password": generate_password_hash("Admin@1234"),
+...
+
+# Main dashboard logic calculating platform-wide statistics
+32: @admin_bp.route("/dashboard")
+33: @login_required
+34: def dashboard():
+35:     _seed_admin() # Triggers seed check
+# Aggregates platform data using MongoDB count_documents
+36:     stats = {
+37:         "total_users": mongo.db.users.count_documents({}),
+38:         "total_workshops": mongo.db.workshops.count_documents({}),
+39:         "total_mechanics": mongo.db.mechanics.count_documents({}),
+40:         "total_requests": mongo.db.service_requests.count_documents({}),
+41:         "pending": mongo.db.service_requests.count_documents({"status": "Pending"}),
+# Can query arrays using $in
+42:         "in_process": mongo.db.service_requests.count_documents({"status": {"$in": ["Accepted", "Assigned", "In Process"]}}),
+43:         "completed": mongo.db.service_requests.count_documents({"status": "Completed"}),
+# Sums revenue by iterating over all documents where payment was Completed. 
+44:         "revenue": sum([r.get("estimated_cost", 0) for r in mongo.db.service_requests.find({"payment_status": "Completed"})]),
+45:     }
+...
+
+# User management endpoints (viewing users and toggling blocks)
+54: # ─── Manage Users ─────────────────────────────────────────────────────────────
+55: @admin_bp.route("/users")
+56: @login_required
+57: def manage_users():
+58:     users = list(mongo.db.users.find().sort("created_at", -1))
+59:     return render_template("admin/manage_users.html", users=users)
+60: 
+61: @admin_bp.route("/users/<user_id>/toggle_block", methods=["POST"])
+...
+66:         new_status = not user.get("is_blocked", False) # Inverts the existing block status boolean
+67:         mongo.db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_blocked": new_status}})
+...
+
+# Workshop management endpoints
+72: # ─── Manage Workshops ─────────────────────────────────────────────────────────
+...
+
+# Approving or rejecting new Workshop registrations
+81: @admin_bp.route("/workshops/<workshop_id>/status", methods=["POST"])
+82: @login_required
+83: def update_workshop_status(workshop_id):
+84:     action = request.form.get("action")
+85:     if action in ["approve", "reject"]:
+# Updates the workshop status from "pending" to "approved" or "rejected", allowing them to log in
+86:         new_status = "approved" if action == "approve" else "rejected"
+87:         mongo.db.workshops.update_one(
+88:             {"_id": ObjectId(workshop_id)},
+89:             {"$set": {"status": new_status}}
+90:         )
+...
+
+# Deleting a workshop completely, including associated cascading data
+104: @admin_bp.route("/workshops/<workshop_id>/delete", methods=["POST"])
+105: @login_required
+106: def delete_workshop(workshop_id):
+107:     # Delete the workshop
+108:     result = mongo.db.workshops.delete_one({"_id": ObjectId(workshop_id)})
+109:     if result.deleted_count > 0:
+110:         # Cascade delete mechanics for this workshop so they aren't orphaned
+111:         mongo.db.mechanics.delete_many({"workshop_id": ObjectId(workshop_id)})
+112:         # Unlink workshop from existing requests, throwing them back into the general "Pending" pool
+113:         mongo.db.service_requests.update_many(
+114:             {"workshop_id": ObjectId(workshop_id)},
+115:             {"$set": {"workshop_id": None, "status": "Pending"}}
+116:         )
+...
+
+# ─── Manage Requests ──────────────────────────────────────────────────────────
+# Simply fetches all requests across the whole platform for admin oversight
+148: @admin_bp.route("/requests")
+149: @login_required
+150: def manage_requests():
+...
+```
+
+## 6. [blueprints/workshop/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/workshop/routes.py) - Workshop Management Portal
+
+This file controls the workshop owner's view. A workshop owner manages incoming service requests from users and assigns their internal mechanics to handle them.
+
+```python
+1: from flask import render_template, request, redirect, url_for, session, flash, jsonify
+...
+6: from utils.notifications import send_sms_alert
+
+# Custom authentication wrapper for workshop roles
+10: def login_required(f):
+11:     from functools import wraps
+12:     @wraps(f)
+13:     def decorated(*args, **kwargs):
+14:         if session.get("role") != "workshop":
+...
+
+# The main view for the workshop owner
+21: # ─── Dashboard ────────────────────────────────────────────────────────────────
+22: @workshop_bp.route("/dashboard")
+23: @login_required
+24: def dashboard():
+25:     workshop_id = ObjectId(session["workshop_id"])
+...
+# Queries requests that are purely "Pending" and belong to EITHER no-one specifically or specifically this workshop
+28:     pending_requests = list(
+29:         mongo.db.service_requests.find({
+30:             "status": "Pending",
+31:             "$or": [{"workshop_id": None}, {"workshop_id": workshop_id}]
+32:         }).sort("created_at", -1)
+33:     )
+# Queries requests this workshop has actively claimed
+34:     accepted_requests = list(
+35:         mongo.db.service_requests.find(
+36:             {"workshop_id": workshop_id, "status": {"$in": ["Accepted", "Assigned", "In Process", "Completed"]}}
+37:         ).sort("created_at", -1)
+38:     )
+...
+# Lists all mechanics belonging to this specific workshop ID
+47:     mechanics = list(mongo.db.mechanics.find({"workshop_id": workshop_id}))
+48:     available_mechanics = [m for m in mechanics if m.get("status") == "available"]
+
+...
+
+# The logic that happens when a Workshop owner clicks "Accept" on a User's pending request
+68: # ─── Accept Request ───────────────────────────────────────────────────────────
+69: @workshop_bp.route("/accept/<request_id>", methods=["POST"])
+70: @login_required
+71: def accept_request(request_id):
+# The workshop must quote an estimated cost before accepting
+72:     estimated_cost = request.form.get("estimated_cost", "0")
+73:     try:
+74:         cost = float(estimated_cost)
+75:     except ValueError:
+76:         cost = 0.0
+77: 
+# Updates the generic request, linking it permanently to this workshop.
+78:     mongo.db.service_requests.update_one(
+79:         {"_id": ObjectId(request_id), "status": "Pending"},
+80:         {"$set": {
+81:             "workshop_id": ObjectId(session["workshop_id"]),
+82:             "status": "Accepted",
+83:             "estimated_cost": cost
+84:         }},
+85:     )
+86:     
+# Attempt to send an SMS notifying the user of the acceptance and price quote
+87:     req = mongo.db.service_requests.find_one({"_id": ObjectId(request_id)})
+88:     if req and req.get("user_id"):
+89:         user = mongo.db.users.find_one({"_id": req["user_id"]})
+90:         if user and user.get("phone"):
+91:             send_sms_alert(user["phone"], f"Your request has been ACCEPTED by a workshop. Estimated Cost: ${cost:.2f}")
+...
+
+# Logic for assigning a specific mechanic from the workshop to a specific accepted request
+97: # ─── Assign Mechanic ──────────────────────────────────────────────────────────
+98: @workshop_bp.route("/assign/<request_id>", methods=["POST"])
+99: @login_required
+100: def assign_mechanic(request_id):
+101:     mechanic_id = request.form.get("mechanic_id")
+...
+# Updates the assignment field
+106:     mongo.db.service_requests.update_one(
+107:         {"_id": ObjectId(request_id)},
+108:         {"$set": {"assigned_mechanic_id": ObjectId(mechanic_id), "status": "Assigned"}},
+109:     )
+...
+
+# Workshop owners can manually create accounts for their mechanics
+121: # ─── Add Mechanic ─────────────────────────────────────────────────────────────
+122: @workshop_bp.route("/add_mechanic", methods=["POST"])
+...
+133:     mongo.db.mechanics.insert_one({
+134:         "name": name,
+135:         "email": email,
+136:         "password": generate_password_hash(password),
+137:         "workshop_id": ObjectId(session["workshop_id"]),
+138:         "status": "available",
+139:         "role": "mechanic",
+140:     })
+...
+
+# Functionality to delete a mechanic
+145: # ─── Delete Mechanic ──────────────────────────────────────────────────────────
+146: @workshop_bp.route("/delete_mechanic/<mechanic_id>", methods=["POST"])
+147: @login_required
+148: def delete_mechanic(mechanic_id):
+149:     mechanic = mongo.db.mechanics.find_one({"_id": ObjectId(mechanic_id), "workshop_id": ObjectId(session["workshop_id"])})
+...
+156:     mongo.db.mechanics.delete_one({"_id": ObjectId(mechanic_id)})
+157:     
+158:     # Reset any active requests assigned to this mechanic back to the generic workshop pool ("Accepted" instead of "Assigned")
+159:     mongo.db.service_requests.update_many(
+160:         {"assigned_mechanic_id": ObjectId(mechanic_id), "status": "Assigned"},
+161:         {"$set": {"assigned_mechanic_id": None, "status": "Accepted"}}
+162:     )
+...
+```
+
+## 7. [blueprints/mechanic/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/mechanic/routes.py) - Mechanic View
+
+This file handles the interface for an individual mechanic to view jobs assigned to them by their workshop owner and to update the status of those jobs.
+
+```python
+1: from flask import render_template, redirect, url_for, session, flash, request
+...
+5: from utils.notifications import send_sms_alert
+
+# Custom authentication wrapper ensuring only logged-in mechanics can view these pages
+9: def login_required(f):
+10:     from functools import wraps
+11:     @wraps(f)
+12:     def decorated(*args, **kwargs):
+13:         if session.get("role") != "mechanic":
+...
+
+# The dashboard is much simpler than the workshop owner's view
+20: # ─── Dashboard ────────────────────────────────────────────────────────────────
+21: @mechanic_bp.route("/dashboard")
+22: @login_required
+23: def dashboard():
+24:     mechanic_id = ObjectId(session["mechanic_id"])
+25:     mechanic = mongo.db.mechanics.find_one({"_id": mechanic_id})
+26: 
+# It solely pulls jobs specifically assigned to this exact mechanic by ID that are still active
+27:     assigned_requests = list(
+28:         mongo.db.service_requests.find(
+29:             {"assigned_mechanic_id": mechanic_id, "status": {"$in": ["Assigned", "In Process"]}}
+30:         ).sort("created_at", -1)
+31:     )
+# Pulls their recently finished jobs
+32:     completed_requests = list(
+33:         mongo.db.service_requests.find(
+34:             {"assigned_mechanic_id": mechanic_id, "status": "Completed"}
+35:         ).sort("created_at", -1)
+36:     )
+...
+
+# This route handles the mechanic reporting progress on an active job
+50: # ─── Update Status ────────────────────────────────────────────────────────────
+51: @mechanic_bp.route("/update_status/<request_id>", methods=["POST"])
+52: @login_required
+53: def update_status(request_id):
+54:     new_status = request.form.get("status")
+# Mechanics can only toggle between actively working on it or finishing it
+55:     allowed = {"In Process", "Completed"}
+56:     if new_status not in allowed:
+57:         flash("Invalid status.", "danger")
+58:         return redirect(url_for("mechanic.dashboard"))
+59: 
+60:     mongo.db.service_requests.update_one(
+61:         {
+# Enforces that the mechanic can only update jobs actually assigned to them
+62:             "_id": ObjectId(request_id),
+63:             "assigned_mechanic_id": ObjectId(session["mechanic_id"]),
+64:         },
+65:         {"$set": {"status": new_status}},
+66:     )
+67:     
+# If the job is marked completed, the system notifies the customer via SMS that payment is now due
+68:     if new_status == "Completed":
+69:         req = mongo.db.service_requests.find_one({"_id": ObjectId(request_id)})
+70:         if req and req.get("user_id"):
+71:             user = mongo.db.users.find_one({"_id": req["user_id"]})
+72:             if user and user.get("phone"):
+73:                 from utils.notifications import send_sms_alert
+74:                 send_sms_alert(user["phone"], "Your Smart Roadside Assistance request has been marked as COMPLETED by the mechanic. Please proceed to payment.")
+...
+```
+
+## 8. [blueprints/payment/routes.py](file:///d:/project/new%20project/road_rescue/blueprints/payment/routes.py) - Payment and Feedback
+
+This file handles the final stage of the application flow: a user paying for a completed service and rating the experience.
+
+```python
+1: from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+...
+4: from datetime import datetime
+5: from utils.notifications import send_email_notification
+
+# Note how this Blueprint is established with a URL prefix directly in the file rather than solely in app.py
+7: payment_bp = Blueprint("payment", __name__, url_prefix="/payment")
+
+# Only general users initiate payments
+9: def login_required(f):
+10:     from functools import wraps
+11:     @wraps(f)
+12:     def decorated(*args, **kwargs):
+13:         if "user_id" not in session:
+...
+
+# The checkout processing route
+19: @payment_bp.route("/checkout/<request_id>", methods=["GET", "POST"])
+20: @login_required
+21: def checkout(request_id):
+# Verifies the user actually owns the request they are trying to pay for
+22:     req = mongo.db.service_requests.find_one({"_id": ObjectId(request_id), "user_id": ObjectId(session["user_id"])})
+...
+27:     if request.method == "POST":
+28:         # Simulate payment processing (In a real app, Razorpay/Stripe integration would go here)
+29:         payment_method = request.form.get("payment_method", "Credit Card")
+30:         
+31:         # Update request to show payment is completed and timestamp it
+32:         mongo.db.service_requests.update_one(
+33:             {"_id": ObjectId(request_id)},
+34:             {"$set": {
+35:                 "payment_status": "Completed",
+36:                 "payment_id": f"txn_{ObjectId()}", # Generates a mock transaction ID using MongoDB's ObjectId generator
+37:                 "payment_method": payment_method,
+38:                 "paid_at": datetime.utcnow()
+39:             }}
+40:         )
+41:         
+# Sends an email receipt upon successful payment simulation
+42:         user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
+43:         if user and user.get("email"):
+44:             send_email_notification(user["email"], "Payment Receipt - Smart Roadside Assistance", f"Your payment of ${req.get('estimated_cost', 0):.2f} was successful.")
+45:             
+46:         flash("Payment successful! Please rate the service.", "success")
+# Immediately redirects the user to leave a review
+47:         return redirect(url_for("payment.rate_service", request_id=request_id))
+...
+
+# The feedback collection route
+52: @payment_bp.route("/rate/<request_id>", methods=["GET", "POST"])
+53: @login_required
+54: def rate_service(request_id):
+55:     req = mongo.db.service_requests.find_one({"_id": ObjectId(request_id), "user_id": ObjectId(session["user_id"])})
+56:     
+57:     if request.method == "POST":
+# Captures standard 1-5 star ratings and text feedback
+58:         workshop_rating = int(request.form.get("workshop_rating", 5))
+59:         mechanic_rating = int(request.form.get("mechanic_rating", 5))
+60:         feedback = request.form.get("feedback_text", "")
+61:         
+# Attaches the ratings directly to the service request document
+62:         mongo.db.service_requests.update_one(
+63:             {"_id": ObjectId(request_id)},
+64:             {"$set": {
+65:                 "workshop_rating": workshop_rating,
+66:                 "mechanic_rating": mechanic_rating,
+67:                 "feedback_text": feedback
+68:             }}
+69:         )
+70:         flash("Thank you for your feedback!", "success")
+71:         return redirect(url_for("user.dashboard"))
+...
+
+```
+
+## 9. `models/` Directory - Database Abstraction Files
+
+While not strictly required by PyMongo (which can query the database directly from the [routes.py](file:///d:/project/new%20project/road_rescue/blueprints/user/routes.py) files), the application uses helper scripts to establish consistent schemas and provide reusable queries. There are four files in this directory.
+
+### [models/user_model.py](file:///d:/project/new%20project/road_rescue/models/user_model.py)
+Helper for User schemas. Defines the default structure when a User signs up:
+
+```python
+1: from datetime import datetime
+2: from extensions import mongo
+3: from werkzeug.security import generate_password_hash, check_password_hash
+...
+# Provides a structured way to insert a User, ensuring all required fields are present and the password gets hashed immediately.
+7: def create_user(name, email, password, phone):
+8:     user = {
+9:         "name": name,
+10:         "email": email,
+11:         "password": generate_password_hash(password),
+12:         "phone": phone,
+13:         "role": "user",
+14:         "created_at": datetime.utcnow(),
+15:     }
+16:     result = mongo.db.users.insert_one(user)
+17:     return result.inserted_id
+...
+```
+
+### [models/workshop_model.py](file:///d:/project/new%20project/road_rescue/models/workshop_model.py)
+Helper for Workshop schemas. Crucially, it formats the GPS coordinates correctly for MongoDB's 2dsphere index:
+
+```python
+6: def create_workshop(name, email, password, phone, location_name, longitude, latitude):
+7:     workshop = {
+...
+13:         "location": {
+14:             "type": "Point", # Required format for GeoJSON
+15:             "coordinates": [float(longitude), float(latitude)], # [LNG, LAT] order is strictly required by MongoDB
+16:         },
+17:         "role": "workshop",
+18:     }
+19:     result = mongo.db.workshops.insert_one(workshop)
+20:     return result.inserted_id
+...
+# Reusable helper to execute $near queries for the map functionality
+40: def find_nearest_workshops(longitude, latitude, max_distance=10000):
+41:     """Find workshops within max_distance metres using $near."""
+42:     return list(
+43:         mongo.db.workshops.find(
+44:             {
+45:                 "location": {
+46:                     "$near": {
+47:                         "$geometry": {
+48:                             "type": "Point",
+49:                             "coordinates": [float(longitude), float(latitude)],
+50:                         },
+51:                         "$maxDistance": max_distance,
+52:                     }
+53:                 }
+54:             }
+55:         ).limit(10)
+56:     )
+```
+
+### [models/mechanic_model.py](file:///d:/project/new%20project/road_rescue/models/mechanic_model.py)
+Simple schema helper for mechanics ensuring they are permanently tied to a `workshop_id`.
+
+```python
+7: def create_mechanic(name, email, password, workshop_id):
+8:     mechanic = {
+9:         "name": name,
+10:         "email": email,
+11:         "password": generate_password_hash(password),
+12:         "workshop_id": ObjectId(workshop_id), # Link to parent struct
+13:         "status": "available", # Default status
+14:         "role": "mechanic",
+15:     }
+16:     result = mongo.db.mechanics.insert_one(mechanic)
+17:     return result.inserted_id
+```
+
+### [models/request_model.py](file:///d:/project/new%20project/road_rescue/models/request_model.py)
+Helper for the central data model: the `Service Request`. This tracks the full lifecycle of a breakdown incident, spanning the User, Workshop, and Mechanic models.
+
+```python
+...
+7: def create_request(user_id, vehicle_type, vehicle_company, vehicle_model,
+8:                    vehicle_year, description, media):
+9:     request = {
+10:         "user_id": ObjectId(user_id), # Tied to the requesting user
+11:         "workshop_id": None, # Unclaimed initially
+12:         "assigned_mechanic_id": None, # Unassigned initially
+13:         "vehicle_type": vehicle_type,
+...
+18:         "media": media,
+19:         "status": "Pending", # Starts as Pending
+20:         "created_at": datetime.utcnow(),
+21:     }
+22:     result = mongo.db.service_requests.insert_one(request)
+23:     return result.inserted_id
+```
+
+## 10. [extensions.py](file:///d:/project/new%20project/road_rescue/extensions.py) and [utils/notifications.py](file:///d:/project/new%20project/road_rescue/utils/notifications.py) - Core Utilities
+
+These files contain simple but essential helper functions used throughout the rest of the application.
+
+### [extensions.py](file:///d:/project/new%20project/road_rescue/extensions.py)
+This file is used to prevent "circular imports" in Flask. By instantiating `PyMongo` here, BOTH [app.py](file:///d:/project/new%20project/road_rescue/app.py) (which configures the app) and [routes.py](file:///d:/project/new%20project/road_rescue/blueprints/user/routes.py) (which use the database) can import `mongo` safely without accidentally importing each other.
+
+```python
+1: from flask_pymongo import PyMongo
+2: 
+3: mongo = PyMongo()
+```
+
+### [utils/notifications.py](file:///d:/project/new%20project/road_rescue/utils/notifications.py)
+This file simulates sending out Emails and SMS messages. In a production environment, this is where you would integrate APIs like Twilio (for SMS) or SendGrid/Amazon SES (for emails). Currently, it mocks the functionality by printing the messages to the server's console terminal.
+
+```python
+1: import logging
+2: 
+# Sets up a basic Python logger to output to the console
+3: logging.basicConfig(level=logging.INFO)
+4: logger = logging.getLogger("Notifications")
+5: 
+6: def send_email_notification(to_email, subject, body):
+7:     """Simulate sending an email."""
+8:     msg = f"\n=== EMAIL SIMULATION ===\nTo: {to_email}\nSubject: {subject}\nBody:\n{body}\n========================\n"
+9:     logger.info(f"[EMAIL MOCK] {to_email} : {subject}")
+10:     print(msg) # Output the mock email text to the terminal
+11:     return True
+12: 
+13: def send_sms_alert(to_phone, message):
+14:     """Simulate sending an SMS alert."""
+15:     msg = f"\n=== SMS SIMULATION ===\nTo: {to_phone}\nMessage: {message}\n======================\n"
+16:     logger.info(f"[SMS MOCK] {to_phone} : {message}")
+17:     print(msg) # Output the mock SMS text to the terminal
+18:     return True
+```
+
+

@@ -31,7 +31,7 @@ def checkout(request_id):
         # Update request
         mongo.db.service_requests.update_one(
             {"_id": ObjectId(request_id)},
-            {"$set": {
+            {"₹set": {
                 "payment_status": "Completed",
                 "payment_id": f"txn_{ObjectId()}",
                 "payment_method": payment_method,
@@ -41,7 +41,7 @@ def checkout(request_id):
         
         user = mongo.db.users.find_one({"_id": ObjectId(session["user_id"])})
         if user and user.get("email"):
-            send_email_notification(user["email"], "Payment Receipt - Smart Roadside Assistance", f"Your payment of ${req.get('estimated_cost', 0):.2f} was successful.")
+            send_email_notification(user["email"], "Payment Receipt - Smart Roadside Assistance", f"Your payment of ₹{req.get('estimated_cost', 0):.2f} was successful.")
             
         flash("Payment successful! Please rate the service.", "success")
         return redirect(url_for("payment.rate_service", request_id=request_id))
@@ -61,7 +61,7 @@ def rate_service(request_id):
         
         mongo.db.service_requests.update_one(
             {"_id": ObjectId(request_id)},
-            {"$set": {
+            {"₹set": {
                 "workshop_rating": workshop_rating,
                 "mechanic_rating": mechanic_rating,
                 "feedback_text": feedback

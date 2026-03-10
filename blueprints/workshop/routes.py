@@ -124,6 +124,7 @@ def assign_mechanic(request_id):
 def add_mechanic():
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip().lower()
+    phone = request.form.get("phone", "").strip()
     password = request.form.get("password", "")
 
     if mongo.db.mechanics.find_one({"email": email}):
@@ -133,6 +134,7 @@ def add_mechanic():
     mongo.db.mechanics.insert_one({
         "name": name,
         "email": email,
+        "phone": phone,
         "password": generate_password_hash(password),
         "workshop_id": ObjectId(session["workshop_id"]),
         "status": "available",
